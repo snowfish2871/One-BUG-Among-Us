@@ -1,4 +1,4 @@
-# One BUG Among Us
+# One BUG Among Us   一个BUG隐藏在我们当中
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
