@@ -1,0 +1,146 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.gradle.userdev' version '7.1.38'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+// Minecraft 1.21.1 用的是 Java 21，这里跟着对齐
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+sourceSets {
+    main {
+        java {
+            // 诊断引擎放在 common 下，和游戏无关，游戏外也能单独跑
+            srcDir 'common/src/main/java'
+        }
+        resources {
+            srcDir 'src/generated/resources'
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "net.neoforged:neoforge:${neo_version}"
+}
+
+// 开发时用的运行配置，IDEA 导入 Gradle 工程后会自动出现在运行下拉框里
+runs {
+    configureEach {
+        systemProperty 'forge.logging.markers', 'REGISTRIES'
+        systemProperty 'forge.logging.console.level', 'debug'
+        workingDirectory project.layout.projectDirectory.dir('run').dir(name)
+        modSource project.sourceSets.main
+    }
+
+    client {
+        systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+    }
+
+    server {
+        systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        argument '--nogui'
+    }
+
+    gameTestServer {
+        systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+    }
+
+    data {
+        arguments.addAll '--mod', project.mod_id, '--all',
+                '--output', file('src/generated/resources/').getAbsolutePath(),
+                '--existing', file('src/main/resources/').getAbsolutePath()
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+// 把 ${...} 占位符换成 gradle.properties 里的值
+tasks.withType(ProcessResources).configureEach {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/neoforge.mods.toml']) {
+        expand replaceProperties
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+// 一个 jar 两种用法：丢进 mods/ 就是模组，java -jar 就是命令行工具。
+// Main-Class 指向 Launcher，由它判断当前是哪种场景。
+jar {
+    manifest {
+        attributes([
+                'Main-Class'              : 'dev.oba.Launcher',
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+}
+
+// 在 IDE 或命令行里单独跑命令行工具，不启动游戏。
+// IDEA 导入后可以直接运行这个任务，也可以在 Run Configuration 里
+// 把主类设成 dev.oba.Launcher，模块类路径选 oba.main。
+tasks.register('runCli', JavaExec) {
+    group = 'oba'
+    description = '运行命令行诊断工具（不启动游戏），参数用 --args="..." 传'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'dev.oba.Launcher'
+    workingDirectory = project.layout.projectDirectory.asFile
+}
+
+// 构建产物在哪，省得每次去翻目录
+tasks.register('dist') {
+    group = 'oba'
+    description = '构建 jar 并打印路径'
+    dependsOn 'jar'
+    doLast {
+        println "Oba jar: ${tasks.jar.archiveFile.get().asFile.absolutePath}"
+        println "既可以放进 mods/ 当模组，也可以 java -jar 当命令行工具。"
+    }
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}
