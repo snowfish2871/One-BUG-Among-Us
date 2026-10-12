@@ -2,6 +2,7 @@
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
+
 **Crash diagnostics for Minecraft 1.21.x on NeoForge**
 
 It names the mod file that broke the game, the class and line where it broke, and what every
@@ -1025,58 +1026,6 @@ notice stays; the authors accept no liability.
 ## Appendix A: community content to be written
 
 > **📌 This section is a reserved placeholder.**
-> The subsection headings and their purpose are settled; the bodies are empty for now.
-
-### A.1 Real-world modpack case studies
-
-*（to be written）*
-
-Planned: actual troubleshooting walks through real modpacks — the symptom, the OBA
-output, and the root cause eventually identified. Each case will include a redacted report
-excerpt.
-
-### A.2 Common crash patterns cheat sheet
-
-*（to be written）*
-
-Planned: a lookup table of "key sentence in the log → what it usually means → what to check
-first", covering missing dependencies, version mismatches, mixin conflicts, registry conflicts
-and out-of-memory situations.
-
-### A.3 How this fits with other troubleshooting tools
-
-*（to be written）*
-
-Planned: which situations suit OBA, which suit reading the crash report by hand, binary
-searching the mod list, or simply reading `latest.log`, and how to combine them.
-
-### A.4 Guidance for mod authors
-
-*（to be written）*
-
-Planned: how to log so that output can be attributed, what context an exception message should
-carry, and how to write `mods.toml` metadata that helps troubleshooting.
-
-### A.5 Dedicated server operations
-
-*（to be written）*
-
-Planned: unattended operation, collecting reports, and integrating with restart scripts or
-monitoring.
-
-### A.6 Known false positives and how to work around them
-
-*（to be written）*
-
-Planned: a round-up of false positives reported by users, what triggers them, how they are
-handled today, and what to do when there is no workaround yet.
-
-### A.7 Version compatibility matrix
-
-*（to be written）*
-
-Planned: Minecraft minor × NeoForge line, with measured results and known issues. Until that
-data exists, treat the [Compatibility](#compatibility) section as authoritative.
 
 ---
 
