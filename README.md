@@ -1,7 +1,9 @@
 # One BUG Among Us
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
+
 **该MOD正在处于初期构建状态尚属未完成作品，请不要将其应用于您的整合包或者存档，造成的任何问题OBA contributors不会承担！**
+
 **面向 Minecraft 1.21.x + NeoForge 的崩溃诊断工具**
 
 指出是哪个模组文件把游戏搞崩的，错在哪个类的哪一行，以及崩溃前后各个模组分别做了什么。
