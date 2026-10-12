@@ -882,14 +882,6 @@ Running an actual client and real modpacks found six more, all of which only sur
 
 ### Still unverified
 
-The `/oba` command tree and the watchdog tick loop need a human to type commands in game
-or at a server console (the development machine's instance only has a client jar, so a dedicated
-server cannot be started, and no game window is available for key injection). They remain
-covered only at the "real mod classes plus real logging backend" level.
-
-The same applies to F3+C: the pickup logic is covered by the harness, but nobody has actually
-pressed the key combination yet.
-
 **The remaining 1.21.x minors** (1.21.2 / 1.21.3 / 1.21.4 / 1.21.5 …) have not been verified on
 a live client; with only NeoForge 21.1.256 cached locally, cross-compilation could not be checked
 either.
