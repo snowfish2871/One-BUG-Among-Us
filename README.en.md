@@ -883,8 +883,7 @@ Running an actual client and real modpacks found six more, all of which only sur
 ### Still unverified
 
 **The remaining 1.21.x minors** (1.21.2 / 1.21.3 / 1.21.4 / 1.21.5 …) have not been verified on
-a live client; with only NeoForge 21.1.256 cached locally, cross-compilation could not be checked
-either.
+a live client.
 
 ---
 
