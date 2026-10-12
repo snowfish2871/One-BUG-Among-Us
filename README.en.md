@@ -2,6 +2,7 @@
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
+**This mod is still in the early stages of development and is an unfinished work, so please don't apply it to your modpacks or save files. OBA contributors won't be responsible for any issues it causes!**
 
 **Crash diagnostics for Minecraft 1.21.x on NeoForge**
 
