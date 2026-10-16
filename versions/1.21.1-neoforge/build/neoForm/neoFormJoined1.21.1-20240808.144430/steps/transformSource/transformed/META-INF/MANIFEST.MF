@@ -1,0 +1,19 @@
+Manifest-Version: 1.0
+FML-System-Mods: neoforge
+
+Name: net/neoforged/neoforge/versions/neoform/
+Implementation-Title: MCP
+Specification-Title: Minecraft
+Specification-Vendor: Mojang
+Implementation-Version: 1.21.1-20240808.144430
+Implementation-Vendor: NeoForged
+Specification-Version: 1.21.1
+
+Name: net/neoforged/neoforge/internal/versions/neoforge/
+Implementation-Title: net.neoforged
+Specification-Title: NeoForge
+Specification-Vendor: NeoForge
+Implementation-Version: 21.1.256
+Implementation-Vendor: NeoForged
+Specification-Version: 21.1
+
