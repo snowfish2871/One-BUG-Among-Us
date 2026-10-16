@@ -2,7 +2,7 @@
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
-**该MOD正在处于初期构建状态尚属未完成作品，请不要将其应用于您的整合包或者存档，造成的任何问题OBA contributors不会承担！**
+**声明：由于该MOD极高的优先级，请不要将其应用于您重要的或者正在运营的服务器或者存档，造成的任何问题OBA contributors不会承担！使用则代表您同意并接受可能的潜在的不稳定风险。**
 
 **面向 Minecraft 1.20.1 ~ 1.21.x 的模组崩溃诊断工具**（Forge 与 NeoForge 都支持）
 
