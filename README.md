@@ -1,12 +1,13 @@
-# One BUG Among Us   一个BUG隐藏在我们当中
+# One BUG Among Us
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
-**该MOD正在处于初期构建状态尚属未完成作品，请不要将其应用于您的整合包或者存档，造成的任何问题OBA contributors不会承担！**
-
-**面向 Minecraft 1.21.x + NeoForge 的崩溃诊断工具**
+**面向 Minecraft 1.20.1 + **Forge** 47 线 的崩溃诊断工具** · 缩写 **OBA**
 
 指出是哪个模组文件把游戏搞崩的，错在哪个类的哪一行，以及崩溃前后各个模组分别做了什么。
+
+> 这是 **1.20.1 轨道**，加载器是 **Forge**（不是 NeoForge —— 1.20.1 那会儿加载器还叫 MinecraftForge）。实机验证是在 1.20.1 + Forge 47.4.26 上做的。
+> 本目录的产物是 `oba-mc1.20.1-forge-1.0.1.jar`。
 
 [English](README.en.md) | 简体中文
 
@@ -14,100 +15,193 @@
 > 不会禁用、移动、重命名或删除任何一个模组。所有结论只是打印出来并写成报告，
 > 是否采取行动由你决定。
 
-<img src="src/main/resources/oba-icon.png" alt="图标" width="128" align="right">
-
-
-
-## 目录
-
-- [它解决什么问题](#它解决什么问题)
-- [核心特性](#核心特性)
-- [兼容性](#兼容性)
-- [快速开始](#快速开始)
-- [事故时间线](#事故时间线)
-- [诊断报告](#诊断报告)
-- [使用方式](#使用方式)
-- [定位原理](#定位原理)
-- [MCreator 识别](#mcreator-识别)
-- [图形类模组专项](#图形类模组专项)
-- [Sinytra Connector 适配](#sinytra-connector-适配)
-- [规则库](#规则库)
-- [项目结构](#项目结构)
-- [构建](#构建)
-- [验证](#验证)
-- [已知限制](#已知限制)
-- [常见问题](#常见问题)
-- [参与贡献](#参与贡献)
-- [致谢](#致谢)
-- [许可协议](#许可协议)
-- [附录 A：待补充社区内容](#附录-a待补充社区内容)
-- [附录 B：术语表](#附录-b术语表)
-
----
-
-## 它解决什么问题
-
-游戏因为模组报错时，日志里通常只有一大段堆栈，看完仍然不知道是谁的问题。
-OBA 把这些信息整理成一句能直接行动的结论：**哪个文件、哪一行、为什么**。
-
-| 你遇到的情况 | OBA 给出的答案 |
-|---|---|
-| 游戏崩溃，只有一堆堆栈 | 元凶模组文件 + 类 / 方法 / 行号 + 完整的证据权重 |
-| 日志写着 `NoClassDefFoundError` | 缺的是哪个类、本该由哪个模组提供、是不是前置没装 |
-| 卡死、无响应，但没有崩溃报告 | 采集线程转储，指出卡住时**正在执行哪个模组** |
-| 整合包几百个模组，不知道从哪查 | 可疑度排序，每个模组附上它被怀疑的具体理由 |
-| `Mixin apply failed` | 定位到具体 mixin 类和行号，提示冲突或版本不匹配 |
-| 同一个模组装了两份 | 列出重复的 modId 及其全部文件 |
-| 想筛出 MCreator 做的模组 | 多重特征评分，逐条列出判定理由 |
-| Fabric 模组经 Connector 跑在 NeoForge 上崩了 | 照样归到那个 Fabric 模组的 jar |
-| 按 F3+C 触发了调试崩溃 | 明确告诉你这是人为触发，不用找元凶 |
-
----
-
-## 核心特性
-
-| | 特性 | 说明 |
-|---|---|---|
-| 🎯 | **精确到行** | 输出类名、方法名、源文件与行号，可直接对照作者源码 |
-| 📜 | **事故时间线** | 崩溃发生时与发生前一段时间，各个模组分别做了什么 |
-| 🧾 | **证据可追溯** | 每条加分理由都列出来，结论看着不对时能定位是哪一步推错 |
-| 🔒 | **严格只读** | 不写入、不移动、不删除任何文件，报告落盘也只在 `logs` 下新增 |
-| 📦 | **单文件双用途** | 同一个 jar：丢进 `mods/` 是模组，`java -jar` 是命令行工具 |
-| 🌐 | **中英双语** | 引擎、命令行、游戏内提示、报告全文都支持切换 |
-| 🎨 | **图形模组谱系** | 认得出钠 / iris 的几十个换名分支，查出「装了两个互斥分支」和「光影加载器缺渲染主体」 |
-| 🖱️ | **点开看简介** | /oba mods 的每一行都能点，展开该模组的简介与关键元数据 |
-| 🧩 | **跨版本设计** | 只用跨小版本稳定的 API，并对初始化做了故障隔离 |
-| 🛡️ | **故障隔离** | 自身启动失败只会安静地不工作，绝不会拦住游戏 |
-
 ---
 
 ## 兼容性
 
-| 项目 | 要求 |
+按**版本轨道**发布：一条轨道覆盖「一套 API」下的所有 Minecraft 小版本，
+同一轨道内模组代码不需要任何改动就能跑。这么分是因为 NeoForge 在这些地方改过 API，
+强行塞进一个 jar 反而会互相拖累。
+
+| 项目 | 值 |
 |---|---|
-| Minecraft | **1.21 ~ 1.21.x**（缺少 NeoForge 的版本不支持） |
-| NeoForge | **21.1 及以上**（每个 1.21.x 小版本对应自己的 21.x 线） |
-| Java | **21**（Minecraft 1.21 起要求 Java 21） |
-| 客户端 / 服务端 | 都支持 |
+| Minecraft | 1.20.1 |
+| 加载器 | **Forge** 47 线 |
+| Java | 17 |
+| 编译目标 | `1.20.1` / `47.4.26` |
+| 状态 | **已实机验证** |
+
+> **1.20.1 走的是 Forge，不是 NeoForge。** 那会儿 NeoForge 还没独立出来 ——
+> 加载器还叫 MinecraftForge，包名是 `net.minecraftforge.*`，和现在的
+> `net.neoforged.*` 是两套完全不同的东西。所以 1.20.1 单独有一条 Forge 轨道。
+> **1.20 不在支持范围内**：那是最早的 1.20，两边都还没就位。
+
+### 构建
+
+本目录是自包含的，直接在这里构建：
+
+```bash
+./gradlew jar
+```
+
+产物在 `build/libs/` 下。构建脚本用的是本目录 `src/main` 里的源码。
+
+### 其他轨道
+
+同一个模组按**版本轨道**分开发布，每条轨道一个独立目录：
+
+| 目录 | Minecraft | 加载器 |
+|---|---|---|
+| `versions/1.21.1-neoforge/` | 1.21 ~ 1.21.x | NeoForge 21.1+ |
+| `versions/1.20.5-1.20.6-neoforge/` | 1.20.5 / 1.20.6 | NeoForge 20.5 / 20.6 |
+| `versions/1.20.2-1.20.4-neoforge/` | 1.20.2 / 1.20.3 / 1.20.4 | NeoForge 20.2 / 20.3 / 20.4 |
+| `versions/1.20.1-forge/` | 1.20.1 | Forge 47 |
+
+引擎源码只有一份，放在 `engine/`。各版本目录里的源码是按加载器拼出来的副本，
+用 `tools/sync-versions.ps1` 同步 —— 改引擎请改 `engine/`，然后重跑那个脚本。
+
+### 加载器适配层
+
+1.20.1 上用不了 NeoForge —— 那会儿加载器还叫 MinecraftForge，包名是
+`net.minecraftforge.*`，和现在的 `net.neoforged.*` 是两套完全不同的东西。
+所以这一节说的是**同一套诊断逻辑怎么跑在两套加载器上**。
+
+共享代码不引用任何加载器的类，只认 `dev.oba.loader` 里的三个接口：
+
+| 接口 | 作用 |
+|---|---|
+| `LoaderEnv` | 列模组、取游戏目录、加载器名字 |
+| `TickHook` | 挂服务器 tick（三套事件类各不相同） |
+| `Loader` | 存放当前轨道装进来的实现 |
+
+每个轨道额外编译一份自己的实现：
+
+| 目录 | 给谁用 |
+|---|---|
+| `src/loader/neoforge/` | 1.20.2 起的所有 NeoForge 轨道，含 1.21.x |
+| `src/loader/forge/` | 1.20.1 的 Forge 轨道 |
+
+各轨道的 `build.gradle` 只把对应那一份加进源目录，所以同一个 jar 里
+不会同时出现两套实现。`@Mod` 入口、事件注册、事件类这些没法抽象的部分
+也放在各自的实现里 —— 两边没有共同的父类可用，只能各写一份，
+但真正干活的逻辑全在共享的 `ObaLifecycle` 里。
+
+### 1.20.1（Forge）轨道的现状
+
+**代码是完整的，但 jar 还没构建出来。** 该做的都做完了：
+
+- 加载器适配层和 `src/loader/forge/` 下的实现
+- Forge 版的 `@Mod` 入口，事件注册、命令注册、tick 挂载都接好了
+- `tracks/1.20.1-forge/` 的构建配置（用 ForgeGradle 6，走官方工具链）
+
+卡住的地方是 **ForgeGradle 首次运行要下载并反混淆整个 1.20.1**。
+实测：`maven.neoforged.net` 那台是不通的（本仓库其余轨道靠改写仓库地址绕过了），
+但 ForgeGradle 自己那套 `MavenArtifactDownloader` 会在
+`DownloadUtils.downloadFile` 里长时间阻塞在同一批下载上，
+12 分钟里 CPU 累计时间一点没涨、缓存也不再增长，等于停住了。
+
+也就是说这不是代码问题，是这台机器的网络到 ForgeGradle 下游那几个主机不稳。
+换一台网络正常的机器，`./gradlew -p tracks/1.20.1-forge jar` 就能出 jar。
+
+**顺带说明为什么 1.20.1 不能用 1.20.2 那套办法**：NeoForge 那几条轨道能用
+NeoGradle 构建，是因为 1.20.2 起加载器包名统一成了 `net.neoforged.*`；
+1.20.1 的 Forge 生产环境跑的是 SRG 命名（`net.minecraft.commands.Commands.m_82127_`），
+而本机那个客户端 jar 是混淆的（`dt.a`），中间必须过一整条反混淆流水线。
+我试过自己用本机的映射文件离线重映射，但 MCP 那份 TSRG2 里的名字是
+`net/minecraft/src/C_xxxxx_` 这种中间占位名，不是最终类名，接不上，
+所以还是得走 ForgeGradle。
+
+### 为什么轨道要这么切
+
+切在 1.20.4 和 1.20.6 之间，是因为 **1.20.5 把 tick 事件重做了一遍**：
+
+| 版本 | tick 事件长什么样 |
+|---|---|
+| 1.20.2 ~ 1.20.4 | `net.neoforged.neoforge.event.TickEvent$ServerTickEvent`，带 `Phase`（START / END），**一次 tick 触发两回** |
+| 1.20.6 及以后 | `net.neoforged.neoforge.event.tick.ServerTickEvent$Post`，拆成 Pre / Post 子类，**一次 tick 触发一回** |
+
+同一个东西在两边的全限定名、构造器、继承关系都不一样，编译期只能选一套。
+跨过这条线的部分由 `TickHook` 的实现在**运行时**探测该用哪套，
+所以两个轨道的源码是同一份，不需要各维护一份。
+
+### 已验证和未验证的
+
+| | 状态 |
+|---|---|
+| 1.21.1 + NeoForge 21.1.256 | **真客户端实机验证过** |
+| 1.20.2 + NeoForge 20.2.93 | **真客户端实机验证过** |
+| 1.20.5 + NeoForge 20.5.21-beta | **真客户端实机验证过** |
+| 各轨道内部的其余小版本 | 依据「同一轨道 API 一致」推断可用，未逐一验证 |
+
+如果你在某个版本上跑出了 OBA 自己的报错，日志里会出现
+`[OBA] OBA 在这个版本上没能启动`、`[OBA] xxx 注册失败` 或
+`[OBA] 在这个版本上没能挂上服务器 tick 事件`，
+把那一行连同版本号提个 issue 即可。
+
+### 实机验证结果
+
+两条 1.20 轨道都在真客户端上跑过了：往 `mods` 里放一个**故意在构造阶段抛异常**的
+测试模组，启动客户端，看 OBA 能不能自己把元凶点出来、并把报告落到 `logs` 下。
+
+| 轨道 | 客户端版本 | 结果 |
+|---|---|---|
+| 1.20.2 ~ 1.20.4 | 1.20.2 + NeoForge 20.2.93 | **定位到 CrasherMod.\<init\> (CrasherMod.java:15)**，报告落盘 |
+| 1.20.5 ~ 1.20.6 | 1.20.5 + NeoForge 20.5.21-beta | 同上，报告落盘 |
+
+顺带在这次实测里修掉了两个只有真跑才暴露出来的问题：
+
+**1. 描述文件名在两个版本段里不一样**
+
+NeoForge 20.2~20.4 找的是 `META-INF/mods.toml`，20.5 起才改名
+`META-INF/neoforge.mods.toml`。名字不对的话加载器连文件都不看，
+表现是"模组文件夹里有两个文件，但一个都没加载"，日志里只有
+`found 2 invalid mod files`。现在两份描述文件都在，各自的轨道排掉另一份。
+
+**2. 旧格式的依赖块多一个必填字段**
+
+20.2~20.4 的 `[[dependencies]]` 要求 `mandatory`，少了会直接报
+`Missing required field mandatory in dependency`。这个字段还必须写在
+`type` 前面 —— 加载器是按顺序流式读这几个键的。
+
+### 关于 1.20 和 1.20.1
+
+**这两个版本用不了 NeoForge，因此不在支持范围内。** 实测确认：把 OBA 放进
+一个 1.20.1 实例后，加载器直接拒绝：
+
+```
+Mod ID: 'neoforge', Requested by: 'oba', Expected range: '[20.2.0,20.5)', Actual version: '[MISSING]'
+net.minecraftforge.fml.ModLoadingException: Mod 'oba' requires 'neoforge' '20.2.0 or above'
+```
+
+那个实例的库是 `net.minecraftforge:eventbus:6.0.5`、`net.minecraftforge:forgespi:7.0.1`、
+`net.neoforged.fancymodloader:loader:47.2.2` —— 这是 **MinecraftForge 47.2.2**，
+包名是 `net.minecraftforge.*`。NeoForge 从 **1.20.2** 才开始独立发布，
+所以「1.20 全小版本 + NeoForge」这个组合实际从 1.20.2 起。
+想支持 1.20.1 得另起一套 Forge 代码，那是另一个项目了。
 
 ### 为什么能跨小版本
 
 模组只依赖**跨版本稳定的那部分 API**：日志后端（log4j2）、模组生命周期事件、
 事件总线、命令注册、以及聊天栏文本。它不碰渲染、不碰世界数据、不碰注册表内容，
-所以不会随小版本迭代而失效。
+所以不会随小版本迭代而失效。唯一踩到版本差异的就是 tick 事件，已经用适配层隔离掉。
 
-同时整个初始化都做了故障隔离：采集器安装、类索引、事件注册、命令树
+同时整个初始化都做了故障隔离：采集器安装、类索引、事件注册、命令树、tick 适配
 各自独立成一段，任何一段因为版本差异抛异常，都只会让**那一个功能**停用，
 并在日志里留下一句说明。OBA 是个诊断工具，它自己绝不该成为游戏起不来的原因。
 
-### 关于验证范围
+### 加一条新轨道
 
-构建与实机验证是在 **1.21.1 + NeoForge 21.1.256** 上完成的。
-其余 1.21.x 小版本依据上述设计推断可用，但没有逐一实机验证过。
+NeoForge 出了新版 Minecraft 时，照下面三步就能加一条：
 
-如果你在别的 1.21.x 版本上跑出了 OBA 自己的报错，
-日志里会出现 `[OBA] OBA 在这个版本上没能启动` 或
-`[OBA] xxx 注册失败`，把那一行连同版本号提个 issue 即可。
+1. 复制 `tracks/1.20.5-1.20.6/` 成 `tracks/<新版本>/`；
+2. 改它 `gradle.properties` 里的 `minecraft_version`、`minecraft_version_range`、
+   `neo_version`、`neo_version_range`、`archive_suffix` 和 `parchment_*`；
+3. `./gradlew -p tracks/<新版本> jar`。
+
+共享代码直接从仓库根目录取（见轨道里的 `build.gradle`），**不需要复制源码**，
+所以新轨道自动跟上所有功能改动。如果新版本又动了 API，
+照 `src/loader/` 下那两套 `TickHook` 实现的样子加一层运行时适配即可。
+
 
 ---
 
@@ -115,7 +209,7 @@ OBA 把这些信息整理成一句能直接行动的结论：**哪个文件、�
 
 ### 游戏内
 
-1. 把 `oba-1.0.0.jar` 放进 `.minecraft/mods/`
+1. 把 `oba-1.0.1.jar` 放进 `.minecraft/mods/`
 2. 启动游戏
 
 此后**不需要输入任何命令**。一旦出错，结论会自己出现在日志和聊天栏，
@@ -134,19 +228,19 @@ OBA 把这些信息整理成一句能直接行动的结论：**哪个文件、�
 
 ```bash
 # 自动找到 .minecraft，分析最新崩溃报告，并把报告写进 logs
-java -jar oba-1.0.0.jar analyze
+java -jar oba-1.0.1.jar analyze
 
 # 指定游戏目录（路径带空格时，加不加引号都能识别）
-java -jar oba-1.0.0.jar analyze --game-dir "D:\我的 游戏\.minecraft"
+java -jar oba-1.0.1.jar analyze --game-dir "D:\我的 游戏\.minecraft"
 
 # 直接喂一个崩溃报告
-java -jar oba-1.0.0.jar analyze crash-reports/crash-2026-10-09_18.03.20-client.txt
+java -jar oba-1.0.1.jar analyze crash-reports/crash-2026-10-09_18.03.20-client.txt
 
 # 列模组 + 查重复 + 查 MCreator + 标出 Fabric 模组
-java -jar oba-1.0.0.jar mods --game-dir "D:\MC\.minecraft"
+java -jar oba-1.0.1.jar mods --game-dir "D:\MC\.minecraft"
 
 # 实时监听，一边玩一边报
-java -jar oba-1.0.0.jar watch "D:\MC\.minecraft\logs\latest.log"
+java -jar oba-1.0.1.jar watch "D:\MC\.minecraft\logs\latest.log"
 ```
 
 ### 试用自带样例
@@ -155,21 +249,128 @@ java -jar oba-1.0.0.jar watch "D:\MC\.minecraft\logs\latest.log"
 
 ```bash
 # NeoForge 模组崩溃
-java -jar oba-1.0.0.jar analyze examples/crash-reports/crash-2026-10-09_18.03.20-client.txt
+java -jar oba-1.0.1.jar analyze examples/crash-reports/crash-2026-10-09_18.03.20-client.txt
 
 # Fabric 模组经 Connector 崩溃
-java -jar oba-1.0.0.jar analyze examples/crash-reports/crash-2026-10-10_11.35.02-client.txt
+java -jar oba-1.0.1.jar analyze examples/crash-reports/crash-2026-10-10_11.35.02-client.txt
 
 # F3+C 手动调试崩溃
-java -jar oba-1.0.0.jar analyze examples/crash-reports/crash-2026-10-10_16.47.12-client.txt
+java -jar oba-1.0.1.jar analyze examples/crash-reports/crash-2026-10-10_16.47.12-client.txt
 
-java -jar oba-1.0.0.jar mods     --game-dir examples
-java -jar oba-1.0.0.jar mcreator --game-dir examples
+java -jar oba-1.0.1.jar mods     --game-dir examples
+java -jar oba-1.0.1.jar mcreator --game-dir examples
 ```
 
 预期结果：第一份指向 `awesome-machines-2.1.0.jar` 的 `MachineRegistry.java:143`；
 第二份指向 `sodium-extra-0.6.0.jar` 的 `MixinOptionsScreen.java:47`；
-第三份说明这是人为触发；`mods` 报出 `sodium` 的重复 modId；`mcreator` 命中 `coolstuff-1.0.0.jar`。
+第三份说明这是人为触发；`mods` 报出 `sodium` 的重复 modId；`mcreator` 命中 `coolstuff-1.0.1.jar`。
+
+---
+
+## 界面
+
+界面分两处：命令行和游戏内聊天栏。两边是同一套视觉——双线标题框、右上角版本号、
+`◈` 品牌标记、分段横线、当前项高亮条——**而且两边的菜单项都能直接点。**
+
+### 命令行菜单
+
+不带参数直接跑就是菜单：
+
+```bash
+java -jar oba-1.0.1.jar
+```
+
+```
+╔════════════════════════════════════════════════════════════════╗
+║  ◈ One BUG Among Us CLI                             OBA v1.0.1 ║
+╚════════════════════════════════════════════════════════════════╝
+
+  工作目录    D:\hmcl\.minecraft
+  状态        ● 就绪
+  构建        One BUG Among Us 1.0.1
+
+  • 选择操作 ──────────────────────────────────────────────────────
+
+   ▶  [1]  诊断最新的崩溃或日志                           执行
+  ╭──────────────────────────────────────────────────────────╮
+  │ [2]  列出已加载模组                                 执行 │
+  ╰──────────────────────────────────────────────────────────╯
+  │ [3]  识别 MCreator 生成的模组                       执行 │
+  │ [4]  实时跟踪 latest.log                            跟踪 │
+  │ [5]  采集并归属线程转储                             采集 │
+  │ [6]  查看进程与索引状态                             执行 │
+  │ [7]  切换语言                                       切换 │
+  │ [8]  打开最新的报告文件                             打开 │
+  │ [9]  退出                                           退出 │
+
+  ↑ ↓ 切换    ENTER 确认    数字键直达    Q 退出
+```
+
+- `↑` `↓` 移动，`ENTER` 确认，`Q` 退出。也可以直接按数字键 `1`–`9` 跳到那一项。
+- **带颜色的名字是超链接。** 在支持超链接的终端（Windows Terminal、iTerm2、
+  绝大多数现代终端）里点一下，会在**新窗口**里单独跑那一条命令，主菜单不用退出来。
+  实现方式是给每一项写一个一次性启动脚本，再把脚本路径包成 OSC 8 超链接发给终端；
+  终端不支持的话控制码会被直接忽略，只剩纯文字，界面照旧。脚本写在临时目录里，退出时删掉。
+- 不想生成这些脚本：加 `-Doba.clickable=false`，或设环境变量 `OBA_CLICKABLE=false`。
+- **管道、重定向、CI 里跑（不是交互式终端）时不会进菜单**，只打印用法——
+  免得控制码混进日志。
+
+颜色按 `-Doba.color` → `OBA_COLOR` → 「是不是交互式终端」的顺序判断。
+`NO_COLOR` 非空、`TERM=dumb`、输出被重定向，任何一个成立就不上色。
+
+### 游戏内
+
+`/oba` 不带参数就是可点菜单：
+
+```
+╔════════════════════════════════════════════════════════════╗
+║  ◈ One BUG Among Us                              OBA v1.0.1 ║
+╚════════════════════════════════════════════════════════════╝
+
+  • 选择操作 ──────────────────────────────────────────────
+
+  █ ▶ [1] 显示最新一份完整报告                            █
+    [2] 进程与索引状态                             执行
+    [3] 列出已加载模组                             执行
+    [4] 识别 MCreator 生成的模组                   执行
+    [5] 采集并归属线程转储                         执行
+    [6] 诊断最新的崩溃报告                         执行
+    [7] 重建模组索引                               执行
+
+  ────────────────────────────────────────────────────────
+  • 需要带参数的命令 ─────────────────────────────────────
+    /oba info <id>      模组简介与元数据
+    /oba analyze <file> 诊断指定的某个文件
+
+  带颜色标记的都能点。
+  https://github.com/OneBUGAmongUs/oba
+```
+
+第一项（反白条那条）是推荐动作，它本身就是第 1 项，也点得动；所以下面接着从 `[2]` 编号。
+
+每行都能点，点一下跑对应子命令。除此之外：
+
+| 哪里 | 点什么 | 会发生什么 |
+|---|---|---|
+| `/oba mods` 的模组列表 | 模组名 | 跑 `/oba info <id>`，看简介 |
+| 报告里的路径 | 路径 | 填进输入框，补个名字就能跑 |
+| 帮助页的 `/oba info <id>` | 那条命令 | 填进输入框等你补名字 |
+| 帮助页的项目地址 | 网址 | 用浏览器打开 |
+
+游戏内不用 ANSI 控制码（聊天栏不认），而是用同一套视觉元素直接拼组件：同样的双线标题框、
+分段横线、反白条，同样的语义色（框线、品牌、强调、正文、提示各一色）。
+
+宽度这块和终端完全不是一回事：**原版聊天栏不是等宽字体**——空格 4 像素、`i` 2 像素、
+小写字母 6 像素、汉字 9 像素。所以游戏内每一行都按像素量宽再补空格，行尾不留多余空格、
+超长行按像素折行。`GameUi` 里存着一份从原版位图字体量出来的宽度表，进游戏后再用客户端
+字体度量校准，因此标题框三行是严格等像素宽的，中英混排也不会错位。
+
+报告正文是引擎那边照**终端 100 列**拼好的，直接塞进 320 像素宽的聊天栏会被原版自动折行 ——
+折出来的残段看上去就是一串乱码（`── 致命 ─────…` 这种分级线会散成好几行横杠）。
+所以送进聊天栏之前会先按聊天栏宽度重排：整行几乎只有横线的收成一条满宽分隔线，
+其余按像素折行，颜色跟着每一段单独带上。加粗的字每个多占 1 像素，量宽度时也算进去，
+不然加粗的分段标题、反白条会正好被挤下去折成两行。
+
 
 ---
 
@@ -240,7 +441,7 @@ OBA 会把日志整理成一条带时间戳的时间线，逐条标明是哪个�
 每份报告开头都会说明是什么原因触发的：
 
 ```
-OBA v1.0.0
+OBA v1.0.1
 由捕获到的错误触发
 报告内容为只读诊断结果，未对任何文件做出改动。
 ════════════════════════════════════════════════════════════════════════
@@ -281,6 +482,7 @@ OBA v1.0.0
 
 | 命令 | 作用 |
 |---|---|
+| `/oba` | **打开可点菜单**（每一项点一下就执行） |
 | `/oba report` | 显示最近一次完整诊断，并写入 `logs` |
 | `/oba status` | 进程状态：内存、线程、死锁、已索引模组数、报告目录 |
 | `/oba mcreator` | 列出疑似 MCreator 生成的模组及判定理由 |
@@ -307,7 +509,7 @@ Awesome Machines  （awesomemachines）
   文件          awesome-machines-2.1.0.jar
   版本          2.1.0
   作者          Example Author
-  许可          MIT
+  许可          GPL-3.0
   加载器        javafml
   类数量        5
   文件大小      1.6 KB
@@ -336,6 +538,8 @@ SHA-1（报 bug 时要用）、重复情况、是不是 MCreator、以及属于�
 ### 命令行工具
 
 ```
+oba                               交互式主菜单（方向键选择，菜单项可点）
+oba menu [--pick <序号|名字>]     交互式主菜单，或直接运行菜单里的某一项
 oba analyze [日志或崩溃报告...]   指出出错的模组和行号
 oba mods                          列出模组目录并检查问题
 oba mcreator                      只跑 MCreator 识别
@@ -351,10 +555,15 @@ oba version / help
 | `--format text\|md\|json` | 输出格式，默认纯文本 |
 | `--output <文件或目录>` | 把报告写到指定位置，而不是 `logs/` |
 | `--lang <en\|zh>` | 报告语言（默认跟随系统） |
-| `--no-color` | 关闭 ANSI 颜色 |
+| `--pick <序号\|名字>` | 只给菜单用：不进菜单，直接跑某一项 |
+| `--color` | 强制上色，管道里也上 |
+| `--no-color` | 关闭 ANSI 颜色，优先级最高 |
 | `--no-mcreator` | 跳过 MCreator 检查，更快 |
 | `--thread <名称>` | 指定要重点分析的卡死线程，如 `"Server thread"` |
 | `-q` / `-v` | 精简输出 / 出错时打印堆栈 |
+
+菜单项做成可点脚本这件事，可以用 JVM 参数 `-Doba.clickable=false`（或环境变量
+`OBA_CLICKABLE=false`）关掉。颜色的判断顺序见[界面](#界面)。
 
 **退出码**：`0` 无问题 · `2` 发现问题 · `64` 参数错误 · `70` 内部错误。
 
@@ -372,12 +581,22 @@ oba version / help
 
 也就是说，**中文客户端自动出中文报告，其他语言的客户端自动出英文报告**，不用手动配。
 
+第 3 条在客户端上分两层读，这是实机验证时发现必须要的：
+
+| 时机 | 怎么读 | 为什么 |
+|---|---|---|
+| 模组构造函数 | 直接读 `options.txt` 里的 `lang:` | 模组如果在构造阶段就崩，整套加载流程当场结束，`FMLCommonSetupEvent` 根本不会触发。挂在那边的话，这种崩溃的报告语言就退回 JVM 区域了，和玩家选的不是一回事 |
+| 客户端就绪 / 进世界 | `LanguageManager.getSelected()` | 这才是权威值。玩家中途改了语言也能跟上 |
+
+`options.txt` 是 UTF-8 纯文本，很小，构造函数阶段读它没有任何负担。
+
+
 ```bash
-java -jar oba-1.0.0.jar analyze --lang en --game-dir examples
-OBA_LANG=en java -jar oba-1.0.0.jar mods --game-dir examples
+java -jar oba-1.0.1.jar analyze --lang en --game-dir examples
+OBA_LANG=en java -jar oba-1.0.1.jar mods --game-dir examples
 ```
 
-所有文案集中在一张表里（`common/.../core/Lang.java`），以 `namespace.key` 形式索引。
+所有文案集中在一张表里（`engine/main/java/dev/oba/core/Lang.java`），以 `namespace.key` 形式索引。
 报告文本存的是**文案键加参数**而不是成品句子，渲染时才解析，
 因此已缓存的报告在切换语言后依然能正确重渲。
 
@@ -608,7 +827,7 @@ Fabric 模组永远不出现在报告里。现在只排除加载器内部实现�
 类名可能经过重映射——免得看到一堆 `net.fabricmc` 以为是异常。
 
 ```bash
-$ java -jar oba-1.0.0.jar mods --game-dir "D:\MC\.minecraft"
+$ java -jar oba-1.0.1.jar mods --game-dir "D:\MC\.minecraft"
 OBA 模组清单 — 6 个文件，26 个类
 检测到 Sinytra Connector，报告里的 Fabric 模组会以各自的 jar 出现。……
 
@@ -648,134 +867,178 @@ connectormod-2.0.0.jar      connectormod     2.0.0  3
 
 ## 项目结构
 
+本目录是**自包含的**：下面列的就是这个版本要编的全部源码，拷走单独构建也行。
+引擎源码的权威副本在仓库根的 `engine/`，这里的 `core/` 是
+`tools/sync-versions.ps1` 同步过来的副本 —— 改逻辑请改 `engine/`，然后重跑那个脚本。
+
 ```
-oba/
+1.20.1-forge/
 │
-├── README.md                       本文档（简体中文）
-├── README.en.md                    English README
-├── LICENSE                         MIT 许可协议全文
-├── build.gradle                    构建脚本，一个工程出两种用途的 jar
-├── settings.gradle                 插件仓库与根项目名
-├── gradle.properties               版本号、模组元数据、兼容版本范围
-├── gradlew / gradlew.bat           Gradle 包装器（8.14.3）
+├── README.md                        本文档（简体中文）
+├── README.en.md                     English README
+├── build.gradle                     构建脚本
+├── settings.gradle                  插件仓库与根项目名
+├── gradle.properties                版本号、模组元数据、兼容版本范围
+├── gradlew                          Gradle 包装器（8.14.3）
+├── gradlew.bat                      同上，Windows 用
+│
+├── gradle/wrapper/                 Gradle 包装器的引导文件
 │
 ├── src/main/java/dev/oba/
-│   ├── Launcher.java               唯一入口：判断是游戏内还是命令行，然后分派
+│   ├── Launcher.java                唯一入口：判断是游戏内还是命令行，然后分派
 │   │
 │   ├── cli/
-│   │   └── Cli.java                命令行工具：参数解析、子命令、输出
+│   │   └── Cli.java                 命令行工具：参数解析、子命令、输出
 │   │
-│   └── mod/                        游戏内那一半
-│       ├── ObaMod.java       模组入口：注册事件、启动索引与看门狗
-│       ├── Diagnostics.java        索引、日志窗口、报告缓存、去抖动调度
-│       ├── DiagnosticAppender.java log4j2 采集器（实时抓 stack trace）
-│       ├── CrashReporter.java      把报告写进 logs 目录，自动清理旧报告
-│       ├── Watchdog.java           进程看门狗：tick 间隔 / 死锁 / 内存
-│       ├── ObaCommands.java  /oba 命令树
-│       └── ClientLanguage.java     把游戏语言同步给引擎（仅客户端）
+│   ├── core/                          诊断引擎（与本版本共编的一份）
+│   │   ├── Analyzer.java            编排：建索引、归属、打分、时间线、出报告
+│   │   ├── ClassIndex.java          类名 / 包名 → 模组 的索引与解析
+│   │   ├── Diagnosis.java           数据模型：Finding / KnownIssue / Report
+│   │   ├── GraphicsMods.java        图形类模组谱系：钠 / iris 各分支与冲突判定
+│   │   ├── Lang.java                中英文文案表
+│   │   ├── LogAnalyzer.java         日志 / 崩溃报告解析 + 规则表
+│   │   ├── LogWatcher.java          类 tail -f 的日志监听（处理轮转与编码）
+│   │   ├── McreatorDetector.java    MCreator 多信号识别
+│   │   ├── ModSource.java           单个模组文件的只读视图（jar 与目录两种形态）
+│   │   ├── Oba.java                 常量：名字、版本号、modId、日志前缀
+│   │   ├── ProcessProbe.java        线程转储解析 + 活体 JVM 采集
+│   │   ├── Reports.java             文本 / Markdown / JSON 渲染
+│   │   ├── StackTraceParser.java    堆栈解析（含 Caused by 链、模块前缀剥离）
+│   │   ├── Theme.java               
+│   │   ├── Timeline.java            事故时间线：事件抽取、时间戳与级别识别
+│   │   └── Toml.java                极简 TOML 解析（读模组描述文件）
+│   │
+│   ├── loader/                        加载器适配层
+│   │   ├── LoadedMod.java           加载器报出来的一条模组信息
+│   │   ├── Loader.java              存放当前版本装进来的加载器实现
+│   │   ├── LoaderEnv.java           加载器适配接口：列模组、取游戏目录
+│   │   ├── TickHook.java            服务器 tick 的挂载点接口
+│   │   └── forge/
+│   │       ├── ForgeEnv.java          Forge 的加载器适配实现
+│   │       └── ForgeTickHook.java     Forge 的 tick 挂载
+│   │
+│   └── mod/                           游戏内那一半
+│       ├── ClientFont.java          
+│       ├── ClientLanguage.java      把游戏语言同步给引擎（仅客户端）
+│       ├── CrashReporter.java       把报告写进 logs 目录，自动清理旧报告，不覆盖强结论
+│       ├── DiagnosticAppender.java  log4j2 采集器（实时抓 stack trace）
+│       ├── Diagnostics.java         索引、日志窗口、报告缓存、去抖动调度
+│       ├── EarlyLanguage.java       尽早从 options.txt 定下报告语言
+│       ├── GameUi.java              
+│       ├── ObaCommands.java         /oba 命令树
+│       ├── ObaLifecycle.java        共享的生命周期：初始化、索引、看门狗、退出钩子
+│       ├── ObaMod.java              模组入口：注册事件、启动索引与看门狗
+│       ├── UiShot.java              
+│       └── Watchdog.java            进程看门狗：tick 间隔 / 死锁 / 内存
 │
 ├── src/main/resources/
-│   ├── oba-icon.png                模组图标（256×256，模组列表里显示的那张）
-│   ├── oba-icon-128.png            同上，小尺寸一份
+│   ├── oba-icon.png                 模组图标（256×256，模组列表里显示的那张）
+│   ├── oba-icon-128.png             同上，小尺寸一份
 │   └── META-INF/
-│       └── neoforge.mods.toml      模组描述文件（构建时展开占位符）
+│       └── mods-1.20.1-forge.toml   模组描述文件（构建时展开占位符）
+│           （源文件叫这个名，打包时落成 mods.toml）
 │
-├── common/                                    诊断引擎（与 Minecraft 解耦）
-│   ├── src/main/java/dev/oba/core/
-│   │   ├── OBA.java          常量：版本号、modId、日志前缀
-│   │   ├── Lang.java               中英文文案表
-│   │   ├── Diagnosis.java          数据模型：Finding / KnownIssue / Report
-│   │   ├── ModSource.java          单个模组文件的只读视图（jar 与目录两种形态）
-│   │   ├── Toml.java               极简 TOML 解析（读 neoforge.mods.toml）
-│   │   ├── ClassIndex.java         类名 / 包名 → 模组 的索引与解析
-│   │   ├── StackTraceParser.java   堆栈解析（含 Caused by 链、模块前缀剥离）
-│   │   ├── LogAnalyzer.java        日志 / 崩溃报告解析 + 规则表
-│   │   ├── Analyzer.java           编排：建索引、归属、打分、时间线、出报告
-│   │   ├── Timeline.java           事故时间线：事件抽取、时间戳与级别识别
-│   │   ├── McreatorDetector.java   MCreator 多信号识别
-│   │   ├── ProcessProbe.java       线程转储解析 + 活体 JVM 采集
-│   │   ├── LogWatcher.java         类 tail -f 的日志监听（处理轮转与编码）
-│   │   └── Reports.java            文本 / Markdown / JSON 渲染
-│   │
-│   └── tools/
-│       ├── SelfTest.java           引擎自测台（纯 JDK）
-│       ├── RuntimeHarness.java     运行时验证台（真实 log4j2 + 真实 Mod 类）
-│       └── cp-init.gradle          打印 classpath，供上面的验证台使用
-│
-├── tools/                                      实机验证用的小工具
-│   ├── run-instance.ps1            用实例自带的版本 json 拼启动命令，真跑客户端
-│   └── crasher/CrasherMod.java     故意在构造阶段抛异常的测试模组
-│
-└── examples/                                   故意做坏的样例目录
-    ├── mods/                       假模组（含重复 modId、MCreator 风格、Fabric、Connector）
-    ├── logs/                       样例 latest.log 与缺前置的日志
-    └── crash-reports/              NeoForge / Fabric / F3+C 三份崩溃报告
+└── docs/banner.svg               README 用的标题条
 ```
 
-`common/src/main/java` 被挂进同一个 sourceSet，所以**一个工程、一个 jar**
-同时包含引擎、模组和命令行三部分，不存在需要同步的副本。
-
----
+> 游戏外的命令行用法：本目录的 jar 同时是可执行的，`java -jar build/libs/*.jar help`。
 
 ## 构建
 
-需要 **JDK 21**（Minecraft 1.21 与 NeoForge 21.x 要求 Java 21）。首次构建需要联网。
+一次构建全部四个版本，产物收在 `dist/`：
 
 ```bash
-./gradlew build
-# -> build/libs/oba-1.0.0.jar
-
-./gradlew dist             # 构建并打印 jar 路径
-./gradlew runClient        # 启动开发环境客户端
-./gradlew runServer        # 启动开发环境服务端
-./gradlew runCli --args="analyze --game-dir examples"   # 不启动游戏，直接跑命令行
+pwsh tools/build-all.ps1
+# -> dist/oba-mc1.21.1-1.0.1.jar
+#    dist/oba-mc1.20.2-1.20.4-1.0.1.jar
+#    dist/oba-mc1.20.5-1.20.6-1.0.1.jar
+#    dist/oba-mc1.20.1-forge-1.0.1.jar
 ```
 
-离线构建加 `--offline`，前提是本地 Gradle 缓存里已有 NeoForge 与反编译产物。
-注意 `build` 还会执行资源下载任务，需要联网；只想要 jar 时用 `./gradlew jar` 即可。
+也可以只构建某一个版本 —— 每个版本目录都是自包含的：
+
+```bash
+cd versions/1.21.1-neoforge && ./gradlew jar
+cd versions/1.20.1-forge    && ./gradlew jar
+```
+
+| 版本 | 需要的 JDK | 备注 |
+|---|---|---|
+| 1.21.x（NeoForge） | **21** | |
+| 1.20.5 ~ 1.20.6（NeoForge） | **21** | |
+| 1.20.2 ~ 1.20.4（NeoForge） | **17** | |
+| 1.20.1（Forge） | **17** | 用 ForgeGradle，构建含 reobf 步骤 |
+
+首次构建需要联网（要下载并反编译对应版本的 Minecraft）。
+之后可以加 `--offline` 复用 Gradle 缓存。
+
+> 这个环境里 `maven.neoforged.net` 连不通，NeoForge 那两条 1.20 轨道靠
+> `mirror.init.gradle` 把仓库请求改写到官方 CDN 镜像；`build-all.ps1` 会自动带上它。
 
 ### 用 IntelliJ IDEA 构建
 
 不需要装任何插件，IDEA 自带的 Gradle 支持就够了。
 
-**1. 导入**：`File → Open`，选**项目根目录**（有 `build.gradle` 和 `settings.gradle` 的那层），
-不要选 `common/` 或 `src/`。首次同步会下载 NeoForge 并反编译 Minecraft，**要等几分钟**。
+**导入的是某个版本目录，不是仓库根。** 仓库根现在只是各版本的集合，
+真正的 Gradle 工程在 `versions/<版本>-<加载器>/` 里。
+
+**1. 导入**：`File → Open`，选你想开发的**那一个版本目录**，例如
+`versions/1.21.1-neoforge`（里面有 `build.gradle` 和 `settings.gradle`）。
+首次同步会下载并反编译对应版本的 Minecraft，**要等几分钟**。
 
 同步完成后确认：
 
-- `File → Project Structure → Project`：SDK 选 **21**，Language level 选 **21**
-- `Settings → Build Tools → Gradle`：Gradle JVM 也选 **21**
-  （用 17 会在编译时报 `invalid source release`）
+- `File → Project Structure → Project`：SDK 选该版本要的 JDK，Language level 对齐
+- `Settings → Build Tools → Gradle`：Gradle JVM 也要一致
+  （用错了会在编译时报 `invalid source release`）
 
-**2. 构建**：右侧 `Gradle` 面板 → `oba` → `Tasks` → `build`，双击。
-产物在 `build/libs/oba-1.0.0.jar`。
+各版本需要的 JDK：
 
-**3. 跑游戏**：导入后运行配置会自动生成，右上角下拉框里能看到
-`runClient` / `runServer` / `runData` / `runGameTestServer`，
-工作目录分别是 `run/client` 和 `run/server`。
+| 版本 | JDK |
+|---|---|
+| 1.21.x（NeoForge） | **21** |
+| 1.20.5 ~ 1.20.6（NeoForge） | **21** |
+| 1.20.2 ~ 1.20.4（NeoForge） | **17** |
+| 1.20.1（Forge） | **17** |
+
+**2. 构建**：右侧 `Gradle` 面板 → `Tasks` → `build`，双击。
+产物在 `build/libs/` 下。
+
+**3. 跑游戏**：NeoForge 那三个版本导入后运行配置会自动生成，右上角能看到
+`runClient` / `runServer`。Forge 那个也有 `runClient` / `runServer`。
 想验证报告落盘，跑一次客户端，出问题后去 `run/client/logs/` 找 `oba-report-*.txt`。
 
-**4. 跑命令行工具**：右侧 Gradle 面板 → `Tasks` → `oba` → `runCli`，双击；
-带参数用命令行：
+**4. 跑命令行工具**：NeoForge 那三个版本有 `runCli` 任务：
 
 ```bash
-./gradlew runCli --args="analyze --game-dir examples"
-./gradlew runCli --args="mods --game-dir examples --lang en"
+cd versions/1.21.1-neoforge
+./gradlew runCli --args="analyze --game-dir ../../examples"
+./gradlew runCli --args="mods --game-dir ../../examples --lang en"
 ```
 
-也可以自建 Application 配置：主类填 `dev.oba.Launcher`，
-模块类路径选 `oba.main`，工作目录填项目根目录。
+也可以直接用 jar：
+
+```bash
+java -jar build/libs/oba-mc1.21.1-1.0.1.jar analyze --game-dir ../../examples
+```
+
 **不要**把 `dev.oba.mod.ObaMod` 当主类——那是模组入口，单独跑会因为找不到 FML 而报错。
+主类是 `dev.oba.Launcher`。
+
+**改引擎代码时注意**：版本目录里的 `core/` 是 `engine/` 的同步副本。
+改完 `engine/` 之后跑一次 `pwsh tools/sync-versions.ps1`，
+否则各版本目录里的还是旧代码。
 
 **常见问题**
 
 | 现象 | 原因与处理 |
 |---|---|
 | 同步卡在 `neoFormDecompile` | 第一次要反编译 Minecraft，耐心等；卡太久检查网络 |
-| `invalid source release: 21` | Gradle JVM 不是 21，改 `Settings → Build Tools → Gradle → Gradle JVM` |
+| `invalid source release` | Gradle JVM 和该版本要的 JDK 不一致 |
 | 运行配置列表里没有 `runClient` | Gradle 没同步完，`Reload Gradle Project` |
 | 改了 `build.gradle` 后行为没变 | 手动 `Reload Gradle Project` |
-| 编译找不到 `net.neoforged` | NeoForge 依赖没下完，删掉 `.gradle` 目录重新同步 |
+| 编译找不到 `net.neoforged` / `net.minecraftforge` | 依赖没下完，删掉 `.gradle` 目录重新同步 |
+| 改了 `engine/` 但版本里没生效 | 忘了跑 `tools/sync-versions.ps1` |
 
 ---
 
@@ -783,9 +1046,9 @@ oba/
 
 | 验证项 | 方式 | 结果 |
 |---|---|---|
-| 引擎逻辑 | `java common/tools/SelfTest.java` | **127 / 127 断言通过** |
+| 引擎逻辑 | `pwsh tools/run-engine-tests.ps1` | **171 / 171 断言通过** |
 | 引擎逻辑覆盖 | 索引、异常归属、异常链、Mixin 失败、依赖缺失、重复模组、线程转储、MCreator 识别、三种报告渲染、目录形态模组、多语言、Connector 混装、NeoForge 真实帧格式、日志编码、F3+C、带空格路径、事故时间线、**图形模组谱系与冲突** | 通过 |
-| **运行时行为** | `common/tools/RuntimeHarness.java`（真实 log4j2 + 真实 Mod 类） | **52 / 52 断言通过** |
+| **运行时行为** | `engine/tools/RuntimeHarness.java`（真实 log4j2 + 真实 Mod 类） | **52 / 52 断言通过** |
 | 运行时覆盖 | 日志采集、异常链还原、自动结论输出、报告落盘、F3+C 崩溃报告补捡、双语渲染、线程转储、只读保证 | 通过 |
 | 单 jar 两种用法 | `java -jar ... version` / 模拟游戏环境 / `-Doba.mode=cli` | 三种路径都正确分派 |
 | **真客户端实机** | 1.21.1 + NeoForge 21.1.256，故意放一个构造阶段就抛异常的模组 | 正确定位到 `CrasherMod.java:13`，报告自动落盘 |
@@ -808,15 +1071,15 @@ oba/
 
 ```bash
 # 1) 取真实依赖的 classpath（离线可跑）
-./gradlew -I common/tools/cp-init.gradle printClasspaths --offline -q
+./gradlew -I engine/tools/cp-init.gradle printClasspaths --offline -q
 #    把 COMPILE_CP= 那一行存下来
 
 # 2) 编译并运行
 javac -encoding UTF-8 -proc:none -cp "$COMPILE_CP" -d build-rt \
-  common/src/main/java/dev/oba/core/*.java \
+  engine/main/java/dev/oba/core/*.java \
   src/main/java/dev/oba/*.java \
   src/main/java/dev/oba/mod/*.java \
-  common/tools/RuntimeHarness.java
+  engine/tools/RuntimeHarness.java
 java -Dstdout.encoding=UTF-8 -cp "build-rt:$COMPILE_CP" dev.oba.tools.RuntimeHarness
 
 # 3) 换个语言再跑一遍
@@ -856,6 +1119,36 @@ java -Doba.lang=en -cp "build-rt:$COMPILE_CP" dev.oba.tools.RuntimeHarness
 | 路径里有空格就失败 | 加引号会被当成路径的一部分，报 `Illegal char <">` | 命令行不会替程序剥引号 |
 | F3+C 崩溃完全看不到 | 报告、结论、日志里都没有任何痕迹 | 手动调试崩溃不经过 log4j2，只有 `crash-reports` 下落一个文件 |
 | 报告刷屏 | `/oba analyze` 的输出被反复分析 | 聊天栏渲染的行只有 `[CHAT]`，没有日志前缀，绕过了「忽略自己输出」的过滤 |
+
+### 游戏内界面怎么验（不用手敲键盘）
+
+游戏内那套彩色菜单没法靠模拟按键验：这台机器上 `PostMessage` 塞 `WM_KEYDOWN`、
+`keybd_event` 造真按键、`AttachThreadInput` 抢焦点三条路都进不了 Minecraft 窗口 ——
+`GetForegroundWindow()` 回报的就是游戏窗口，但连 Esc 都弹不出暂停菜单。于是改成让模组自己跑：
+
+```powershell
+# 截 /oba help 的完整菜单
+pwsh tools/ui-shot.ps1 -VersionDir "D:\hmcl\.minecraft\versions\test" -World "新的世界" `
+  -Out build-v\ui-ingame.png -NoKeys -JavaExe "C:\Program Files\Zulu\zulu-21\bin\java.exe"
+
+# 想连标题框一起看见，就跑条输出特别短的：聊天栏只露得出最后十来行，
+# 菜单二十来行，顶上的标题框会被切掉（/oba mcreator 没有结果时只有五行，刚好全露）
+pwsh tools/ui-shot.ps1 -VersionDir "D:\hmcl\.minecraft\versions\test" -World "新的世界" `
+  -Command "/oba mcreator" -Out build-v\ui-ingame.png -NoKeys -JavaExe "C:\Program Files\Zulu\zulu-21\bin\java.exe"
+```
+
+- `-NoKeys` 会带上 `-Doba.ui.shot=<命令>`（`-Command` 给什么就跑什么，默认 `oba help`），
+  模组进世界后自己执行；
+- 截图取的是**游戏自己的帧缓冲**（`Screenshot.grab`，等同按 F2）—— 被别的窗口盖住的 GPU 窗口
+  抓屏只能拿到过期画面，聊天栏在窗口截图里永远看不见；
+- 跑之前临时把实例的 `pauseOnLostFocus` 改成 `false`、`chatHeightUnfocused` 改成 `1.0`（跑完还原）；
+- 聊天栏能露多少行跟 `guiScale` 没关系（3 / 2 / 1 都试过，一直都是十九行上下），别去动玩家的界面缩放；
+- 顺手核对排版：`UiShot` 会把「宽度表 vs 客户端真字体」逐字比对、以及标题框三行是否等像素宽
+  写进日志（`[OBA] 宽度核对：…` / `[OBA] 标题框三行像素宽：…`），宽度表里 `╭╮╯╰◈`
+  几个值就是这么被纠正的。
+
+「点一下就能执行」由自测护着：菜单行按整棵组件树展开，断言**每一个**节点都挂着
+`RUN_COMMAND` 点击事件（链接行是 `OPEN_URL`，带参数行是 `SUGGEST_COMMAND`）。
 
 ### 还没验证的部分
 
@@ -950,34 +1243,27 @@ java -Doba.lang=en -cp "build-rt:$COMPILE_CP" dev.oba.tools.RuntimeHarness
 
 ## 许可协议
 
-本项目以 **MIT 许可证** 发布，全文见 [LICENSE](LICENSE)。
+本项目以 **GNU 通用公共许可证第 3 版（GPL-3.0）** 发布，全文见 [LICENSE](LICENSE)。
 
 ```
-MIT License
+One BUG Among Us (OBA)
+Copyright (C) 2026 ModDoctor contributors
 
-Copyright (c) 2026 OBA contributors
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3 of the License.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
 ```
 
-简单说：你可以自由使用、修改、分发、甚至商用，只要保留版权声明；
-作者不对使用后果负责。
+简单说：你可以自由使用、修改、分发，但**分发修改后的版本时必须同样以 GPL-3.0 开源并保留版权声明**；
+作者不对使用后果负责。和 MIT 最大的区别就在这里——改过的版本不能再闭源。
 
 ---
 
@@ -1011,6 +1297,6 @@ SOFTWARE.
 
 **One BUG Among Us** · 只读诊断 · 不碰你的任何文件
 
-[MIT License](LICENSE) · [English README](README.en.md)
+[GPL-3.0 License](LICENSE) · [English README](README.en.md)
 
 </div>
