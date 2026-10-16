@@ -2,13 +2,13 @@
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
-**Crash diagnostics for Minecraft 1.20.1 on the **Forge** 47 line** · abbreviated **OBA**
+**Crash diagnostics for Minecraft 1.20.5 / 1.20.6 on the NeoForge 20.5 / 20.6 lines** · abbreviated **OBA**
 
 It names the mod file that broke the game, the class and line where it broke, and what every
 mod was doing in the moments before and during the failure.
 
-> This is the **1.20.1 track**, running on **Forge** (not NeoForge — back then the loader was still MinecraftForge). Verified in game on 1.20.1 + Forge 47.4.26.
-> This directory produces `oba-mc1.20.1-forge-1.0.1.jar`.
+> This is the **1.20.5 - 1.20.6 track**, running on NeoForge. Verified in game on 1.20.5 + NeoForge 20.5.21-beta.
+> This directory produces `oba-mc1.20.5-1.20.6-1.0.1.jar`.
 
 English | [简体中文](README.md)
 
@@ -27,10 +27,10 @@ make the versions hold each other back.
 
 | | |
 |---|---|
-| Minecraft | 1.20.1 |
-| Loader | the **Forge** 47 line |
-| Java | 17 |
-| Built against | `1.20.1` / `47.4.26` |
+| Minecraft | 1.20.5 / 1.20.6 |
+| Loader | the NeoForge 20.5 / 20.6 lines |
+| Java | 21 |
+| Built against | `1.20.5` / `20.5.21-beta` |
 | Status | **verified on a live client** |
 
 > **1.20.1 runs on Forge, not NeoForge.** NeoForge had not split off yet — the loader was
@@ -63,6 +63,10 @@ There is one copy of the engine source, under `engine/`. The sources inside each
 directory are per-loader copies assembled from it by `tools/sync-versions.ps1` — edit the engine
 there and re-run that script.
 
+Each track also has a branch of the same name (`1.21.1-neoforge`, `1.20.1-forge`, and so on)
+holding that version's self-contained project; if you only care about one version, cloning that
+branch is the shorter route.
+
 ### The loader adapter layer
 
 This section is about **running the same diagnostic logic on both loaders**.
@@ -88,31 +92,23 @@ The parts that cannot be abstracted — the `@Mod` entry point, event registrati
 classes themselves — live in each implementation, because the two loaders share no common
 superclass. All the actual work sits in the shared `ObaLifecycle`.
 
-### Status of the 1.20.1 (Forge) track
+### The 1.20.1 (Forge) track
 
-**The code is complete, but the jar has not been built.** Everything is in place:
+That track builds with ForgeGradle on the official toolchain, and reobfuscation is part of the
+build, so it takes longer than the other three and needs JDK 17. The jar lands in `dist/` like
+the rest.
 
-- the loader adapter layer and the implementation under `src/loader/forge/`
-- the Forge `@Mod` entry point, with event, command and tick registration wired up
-- the build config in `tracks/1.20.1-forge/` (ForgeGradle 6, the official toolchain)
+> One build snag worth writing down, in case another machine hits the same stall: the first
+> ForgeGradle run downloads and deobfuscates all of 1.20.1, and `maven.neoforged.net` is not
+> reachable here. The other tracks get around that by rewriting repository URLs; ForgeGradle's
+> own `MavenArtifactDownloader` cannot be redirected the same way, so it sits in
+> `DownloadUtils.downloadFile` with accumulated CPU time flat and the cache no longer growing.
+> Pointing it at the official CDN mirror fixed it.
 
-What blocks it is that **ForgeGradle has to download and deobfuscate all of 1.20.1 on its first
-run**. Measured: `maven.neoforged.net` is unreachable from this machine (the other tracks work
-around that by rewriting repository URLs), but ForgeGradle's own `MavenArtifactDownloader` blocks
-for a long time inside `DownloadUtils.downloadFile` on the same batch of downloads — over 12
-minutes with accumulated CPU time not moving at all and the cache no longer growing. It is
-stalled, not slow.
-
-This is a network problem on this machine, not a code problem. On a machine with a working
-network, `./gradlew -p tracks/1.20.1-forge jar` will produce the jar.
-
-**Why 1.20.1 cannot use the same approach as the other tracks:** NeoForge tracks build with
-NeoGradle because from 1.20.2 on, the loader packages are uniformly `net.neoforged.*`. Forge on
-1.20.1 runs SRG names in production (`net.minecraft.commands.Commands.m_82127_`) while the local
-client jar is obfuscated (`dt.a`), so a full deobfuscation pipeline is unavoidable. I tried
-remapping offline with the local mapping files, but the MCP TSRG2 file uses intermediate
-placeholder names (`net/minecraft/src/C_xxxxx_`) rather than final class names, so it cannot be
-joined up. ForgeGradle it is.
+**Why 1.20.1 cannot simply reuse the 1.20.2 recipe:** the NeoForge tracks build uniformly
+because from 1.20.2 on the loader packages are all `net.neoforged.*`. Forge on 1.20.1 runs SRG
+names in production (`net.minecraft.commands.Commands.m_82127_`) while the client jar itself is
+obfuscated (`dt.a`), so a full deobfuscation pipeline is unavoidable — hence ForgeGradle.
 
 ### Why the tracks are cut where they are
 
@@ -135,6 +131,7 @@ the source.
 | 1.21.1 + NeoForge 21.1.256 | **verified on a real client** |
 | 1.20.2 + NeoForge 20.2.93 | **verified on a real client** |
 | The 1.20.5 - 1.20.6 track | **verified on a live client** |
+| 1.20.1 + Forge 47.4.26 | **verified on a real client** |
 | Other minors inside a track | expected to work on the "same API within a track" argument, not verified one by one |
 
 If OBA itself errors on some version, the log will contain
@@ -144,14 +141,16 @@ numbers and it can be looked at.
 
 ### Verified in game
 
-Both 1.20 tracks were run on a real client: a test mod that **deliberately throws in its
+All four tracks were run on a real client: a test mod that **deliberately throws in its
 constructor** was dropped into `mods`, the client was started, and the question was whether OBA
 would name the culprit on its own and write the report into `logs`.
 
 | Track | Client | Result |
 |---|---|---|
-| 1.20.2 - 1.20.4 | 1.20.2 + NeoForge 20.2.93 | **named CrasherMod.\<init\> (CrasherMod.java:15)**, report written |
+| 1.21.x | 1.21.1 + NeoForge 21.1.256 | **named CrasherMod.\<init\> (CrasherMod.java:15)**, report written |
 | 1.20.5 - 1.20.6 | 1.20.5 + NeoForge 20.5.21-beta | same, report written |
+| 1.20.2 - 1.20.4 | 1.20.2 + NeoForge 20.2.93 | same, report written |
+| 1.20.1 | 1.20.1 + Forge 47.4.26 | same, on an exact class name match |
 
 Two problems only showed up by actually running it, and both are fixed now:
 
@@ -168,10 +167,11 @@ In 20.2 - 20.4 a `[[dependencies]]` block requires `mandatory`, and without it y
 `Missing required field mandatory in dependency`. The field also has to come *before* `type` —
 the loader reads those keys as a stream, in order.
 
-### About 1.20 and 1.20.1
+### About 1.20
 
-**These two cannot run NeoForge, so they are out of scope.** Verified by experiment: dropping OBA
-into a 1.20.1 instance makes the loader reject it outright:
+**1.20 — meaning the original 1.20, not 1.20.1 — is not supported.** NeoForge only started
+publishing on its own with **1.20.2**, so that version range has no usable loader combination.
+Drop the NeoForge build of OBA into a 1.20.1 Forge instance and the loader rejects it outright:
 
 ```
 Mod ID: 'neoforge', Requested by: 'oba', Expected range: '[20.2.0,20.5)', Actual version: '[MISSING]'
@@ -180,9 +180,8 @@ net.minecraftforge.fml.ModLoadingException: Mod 'oba' requires 'neoforge' '20.2.
 
 That instance carries `net.minecraftforge:eventbus:6.0.5`, `net.minecraftforge:forgespi:7.0.1`
 and `net.neoforged.fancymodloader:loader:47.2.2` — that is **MinecraftForge 47.2.2**, with
-`net.minecraftforge.*` packages. NeoForge only started publishing on its own with **1.20.2**, so
-"all of 1.20 with NeoForge" really begins there. Supporting 1.20.1 would mean a separate Forge
-codebase, which is a different project.
+`net.minecraftforge.*` packages. 1.20.1 therefore has its own Forge track producing its own jar,
+and the two lines never meet.
 
 ### Why it works across minor versions
 
@@ -202,14 +201,16 @@ fails to start.
 
 When NeoForge moves to a new Minecraft version, three steps are enough:
 
-1. Copy `tracks/1.20.5-1.20.6/` to `tracks/<new version>/`;
+1. Copy `versions/1.20.5-1.20.6-neoforge/` to `versions/<new version>-neoforge/`;
 2. Change `minecraft_version`, `minecraft_version_range`, `neo_version`, `neo_version_range`,
    `archive_suffix` and the `parchment_*` keys in its `gradle.properties`;
-3. `./gradlew -p tracks/<new version> jar`.
+3. Add the new directory to the lists in `tools/sync-versions.ps1` and `tools/build-all.ps1`,
+   then sync and build.
 
-Shared code is pulled straight from the repository root (see the track's `build.gradle`), so
-**no source is duplicated** and a new track picks up every feature change automatically. If the
-new version moves an API again, add another runtime adapter shaped like the `TickHook` implementations under `src/loader/`.
+Shared code is copied out of `engine/` by `tools/sync-versions.ps1`, so **nothing is
+hand-duplicated** and a new track picks up every engine change automatically. If the new version
+moves an API again, add another runtime adapter shaped like the `TickHook` implementations under
+`src/loader/`.
 
 
 ---
@@ -889,7 +890,7 @@ lives in `engine/` at the repository root; the `core/` here is a copy synced by
 `tools/sync-versions.ps1` — edit the engine there, then re-run that script.
 
 ```
-1.20.1-forge/
+1.20.5-1.20.6-neoforge/
 │
 ├── README.md                        Simplified Chinese README
 ├── README.en.md                     This file (English)
@@ -898,6 +899,7 @@ lives in `engine/` at the repository root; the `core/` here is a copy synced by
 ├── gradle.properties                Version, mod metadata, supported version ranges
 ├── gradlew                          Gradle wrapper (8.14.3)
 ├── gradlew.bat                      Same, for Windows
+├── mirror.init.gradle               Rewrites the dead maven host to the official CDN mirror
 │
 ├── gradle/wrapper/                 Gradle wrapper bootstrap files
 │
@@ -930,9 +932,9 @@ lives in `engine/` at the repository root; the `core/` here is a copy synced by
 │   │   ├── Loader.java              Holds whichever loader implementation this build installed
 │   │   ├── LoaderEnv.java           Loader adapter interface: list mods, resolve the game directory
 │   │   ├── TickHook.java            Server tick hook interface
-│   │   └── forge/
-│   │       ├── ForgeEnv.java          Forge loader adapter
-│   │       └── ForgeTickHook.java     Forge tick hook
+│   │   └── neoforge/
+│   │       ├── NeoForgeEnv.java       NeoForge loader adapter
+│   │       └── NeoForgeTickHook.java  NeoForge tick hook, with cross-version probing
 │   │
 │   └── mod/                           The in-game half
 │       ├── ClientFont.java          
@@ -952,8 +954,7 @@ lives in `engine/` at the repository root; the `core/` here is a copy synced by
 │   ├── oba-icon.png                 Mod icon (256x256, the one shown in the mod list)
 │   ├── oba-icon-128.png             Same icon, small size
 │   └── META-INF/
-│       └── mods-1.20.1-forge.toml   Mod descriptor (placeholders expanded at build time)
-│           (the source file has this name; it ships as mods.toml)
+│       └── neoforge.mods.toml       Mod descriptor (placeholders expanded at build time)
 │
 └── docs/banner.svg               Title banner used by the READMEs
 ```
@@ -978,6 +979,9 @@ Or build just one — every version directory is self-contained:
 cd versions/1.21.1-neoforge && ./gradlew jar
 cd versions/1.20.1-forge    && ./gradlew jar
 ```
+
+If you cloned a **version branch** (say `1.21.1-neoforge`), that branch holds only that one
+version and its root is the Gradle project, so `./gradlew jar` right there is all it takes.
 
 | Version | JDK needed | Notes |
 |---|---|---|
@@ -1011,8 +1015,9 @@ decompiled artefacts. Note that `build` also runs the asset download step, which
 
 No plugin needed; IDEA's built-in Gradle support is enough.
 
-**Open a version directory, not the repository root.** The root is now just a collection of
-versions; the actual Gradle projects live in `versions/<version>-<loader>/`.
+**Open a version directory, not the repository root.** The default branch is the overview plus the
+engine and scripts; the actual Gradle projects live in `versions/<version>-<loader>/` (on a
+version branch, the branch root is the project).
 
 **1. Open.** `File -> Open` and pick the **version directory** you want to work on, for example
 `versions/1.21.1-neoforge` (it contains `build.gradle` and `settings.gradle`). The first sync

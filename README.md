@@ -2,12 +2,12 @@
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
-**面向 Minecraft 1.20.1 + **Forge** 47 线 的崩溃诊断工具** · 缩写 **OBA**
+**面向 Minecraft 1.20.5 / 1.20.6（NeoForge 20.5 / 20.6 线）的崩溃诊断工具** · 缩写 **OBA**
 
 指出是哪个模组文件把游戏搞崩的，错在哪个类的哪一行，以及崩溃前后各个模组分别做了什么。
 
-> 这是 **1.20.1 轨道**，加载器是 **Forge**（不是 NeoForge —— 1.20.1 那会儿加载器还叫 MinecraftForge）。实机验证是在 1.20.1 + Forge 47.4.26 上做的。
-> 本目录的产物是 `oba-mc1.20.1-forge-1.0.1.jar`。
+> 这是 **1.20.5 ~ 1.20.6 轨道**，加载器是 NeoForge。实机验证是在 1.20.5 + NeoForge 20.5.21-beta 上做的。
+> 本目录的产物是 `oba-mc1.20.5-1.20.6-1.0.1.jar`。
 
 [English](README.en.md) | 简体中文
 
@@ -25,10 +25,10 @@
 
 | 项目 | 值 |
 |---|---|
-| Minecraft | 1.20.1 |
-| 加载器 | **Forge** 47 线 |
-| Java | 17 |
-| 编译目标 | `1.20.1` / `47.4.26` |
+| Minecraft | 1.20.5 / 1.20.6 |
+| 加载器 | NeoForge 20.5 / 20.6 线 |
+| Java | 21 |
+| 编译目标 | `1.20.5` / `20.5.21-beta` |
 | 状态 | **已实机验证** |
 
 > **1.20.1 走的是 Forge，不是 NeoForge。** 那会儿 NeoForge 还没独立出来 ——
@@ -60,6 +60,9 @@
 引擎源码只有一份，放在 `engine/`。各版本目录里的源码是按加载器拼出来的副本，
 用 `tools/sync-versions.ps1` 同步 —— 改引擎请改 `engine/`，然后重跑那个脚本。
 
+远端每个轨道各有一条同名分支（`1.21.1-neoforge`、`1.20.1-forge` 等），
+里面就是这个版本自包含的工程；只关心一个版本的话，直接从那条分支克隆更省事。
+
 ### 加载器适配层
 
 1.20.1 上用不了 NeoForge —— 那会儿加载器还叫 MinecraftForge，包名是
@@ -86,30 +89,21 @@
 也放在各自的实现里 —— 两边没有共同的父类可用，只能各写一份，
 但真正干活的逻辑全在共享的 `ObaLifecycle` 里。
 
-### 1.20.1（Forge）轨道的现状
+### 1.20.1（Forge）轨道
 
-**代码是完整的，但 jar 还没构建出来。** 该做的都做完了：
+1.20.1 那条轨道单独用 ForgeGradle 构建，走官方工具链，jar 里多了 reobf 那一步，
+所以它比另外三条慢，也必须用 JDK 17。产物和别的轨道一样落在 `dist/` 下。
 
-- 加载器适配层和 `src/loader/forge/` 下的实现
-- Forge 版的 `@Mod` 入口，事件注册、命令注册、tick 挂载都接好了
-- `tracks/1.20.1-forge/` 的构建配置（用 ForgeGradle 6，走官方工具链）
+> 构建踩过的坑记在这里，换台机器遇到同样的卡顿能对上：ForgeGradle 首次运行要下载并
+> 反混淆整个 1.20.1，而 `maven.neoforged.net` 这台在本机网络下不通。另外三条轨道靠
+> 改写仓库地址绕过了，ForgeGradle 自己那套 `MavenArtifactDownloader` 绕不过去，
+> 表现是长时间停在 `DownloadUtils.downloadFile` 上，CPU 累计时间不涨、缓存也不长。
+> 换成官方 CDN 镜像之后正常出 jar。
 
-卡住的地方是 **ForgeGradle 首次运行要下载并反混淆整个 1.20.1**。
-实测：`maven.neoforged.net` 那台是不通的（本仓库其余轨道靠改写仓库地址绕过了），
-但 ForgeGradle 自己那套 `MavenArtifactDownloader` 会在
-`DownloadUtils.downloadFile` 里长时间阻塞在同一批下载上，
-12 分钟里 CPU 累计时间一点没涨、缓存也不再增长，等于停住了。
-
-也就是说这不是代码问题，是这台机器的网络到 ForgeGradle 下游那几个主机不稳。
-换一台网络正常的机器，`./gradlew -p tracks/1.20.1-forge jar` 就能出 jar。
-
-**顺带说明为什么 1.20.1 不能用 1.20.2 那套办法**：NeoForge 那几条轨道能用
-NeoGradle 构建，是因为 1.20.2 起加载器包名统一成了 `net.neoforged.*`；
-1.20.1 的 Forge 生产环境跑的是 SRG 命名（`net.minecraft.commands.Commands.m_82127_`），
-而本机那个客户端 jar 是混淆的（`dt.a`），中间必须过一整条反混淆流水线。
-我试过自己用本机的映射文件离线重映射，但 MCP 那份 TSRG2 里的名字是
-`net/minecraft/src/C_xxxxx_` 这种中间占位名，不是最终类名，接不上，
-所以还是得走 ForgeGradle。
+**为什么 1.20.1 不能直接套 1.20.2 那套**：NeoForge 三条轨道能统一构建，是因为 1.20.2 起
+加载器包名统一成了 `net.neoforged.*`；1.20.1 的 Forge 跑的是 SRG 命名
+（`net.minecraft.commands.Commands.m_82127_`），而客户端 jar 本身是混淆的（`dt.a`），
+中间必须过一整条反混淆流水线，所以只能走 ForgeGradle。
 
 ### 为什么轨道要这么切
 
@@ -131,6 +125,7 @@ NeoGradle 构建，是因为 1.20.2 起加载器包名统一成了 `net.neoforge
 | 1.21.1 + NeoForge 21.1.256 | **真客户端实机验证过** |
 | 1.20.2 + NeoForge 20.2.93 | **真客户端实机验证过** |
 | 1.20.5 + NeoForge 20.5.21-beta | **真客户端实机验证过** |
+| 1.20.1 + Forge 47.4.26 | **真客户端实机验证过** |
 | 各轨道内部的其余小版本 | 依据「同一轨道 API 一致」推断可用，未逐一验证 |
 
 如果你在某个版本上跑出了 OBA 自己的报错，日志里会出现
@@ -140,13 +135,15 @@ NeoGradle 构建，是因为 1.20.2 起加载器包名统一成了 `net.neoforge
 
 ### 实机验证结果
 
-两条 1.20 轨道都在真客户端上跑过了：往 `mods` 里放一个**故意在构造阶段抛异常**的
-测试模组，启动客户端，看 OBA 能不能自己把元凶点出来、并把报告落到 `logs` 下。
+四个轨道都在真客户端上跑过：往 `mods` 里放一个**故意在构造阶段抛异常**的测试模组，
+启动客户端，看 OBA 能不能自己把元凶点出来、并把报告落到 `logs` 下。
 
 | 轨道 | 客户端版本 | 结果 |
 |---|---|---|
-| 1.20.2 ~ 1.20.4 | 1.20.2 + NeoForge 20.2.93 | **定位到 CrasherMod.\<init\> (CrasherMod.java:15)**，报告落盘 |
-| 1.20.5 ~ 1.20.6 | 1.20.5 + NeoForge 20.5.21-beta | 同上，报告落盘 |
+| 1.21.x | 1.21.1 + NeoForge 21.1.256 | **定位到 CrasherMod.\<init\> (CrasherMod.java:15)**，报告落盘 |
+| 1.20.5 ~ 1.20.6 | 1.20.5 + NeoForge 20.5.21-beta | 同上 |
+| 1.20.2 ~ 1.20.4 | 1.20.2 + NeoForge 20.2.93 | 同上 |
+| 1.20.1 | 1.20.1 + Forge 47.4.26 | 同上，判定依据是「精确匹配类名」 |
 
 顺带在这次实测里修掉了两个只有真跑才暴露出来的问题：
 
@@ -163,10 +160,11 @@ NeoForge 20.2~20.4 找的是 `META-INF/mods.toml`，20.5 起才改名
 `Missing required field mandatory in dependency`。这个字段还必须写在
 `type` 前面 —— 加载器是按顺序流式读这几个键的。
 
-### 关于 1.20 和 1.20.1
+### 关于 1.20
 
-**这两个版本用不了 NeoForge，因此不在支持范围内。** 实测确认：把 OBA 放进
-一个 1.20.1 实例后，加载器直接拒绝：
+**1.20（这里指最早的 1.20，不含 1.20.1）不在支持范围内。** NeoForge 从 **1.20.2**
+才独立发布，1.20 那会儿两边都还没就位，没有可用的加载器组合。把 NeoForge 版的 OBA
+放进 1.20.1 的 Forge 实例，加载器会直接拒绝：
 
 ```
 Mod ID: 'neoforge', Requested by: 'oba', Expected range: '[20.2.0,20.5)', Actual version: '[MISSING]'
@@ -174,10 +172,9 @@ net.minecraftforge.fml.ModLoadingException: Mod 'oba' requires 'neoforge' '20.2.
 ```
 
 那个实例的库是 `net.minecraftforge:eventbus:6.0.5`、`net.minecraftforge:forgespi:7.0.1`、
-`net.neoforged.fancymodloader:loader:47.2.2` —— 这是 **MinecraftForge 47.2.2**，
-包名是 `net.minecraftforge.*`。NeoForge 从 **1.20.2** 才开始独立发布，
-所以「1.20 全小版本 + NeoForge」这个组合实际从 1.20.2 起。
-想支持 1.20.1 得另起一套 Forge 代码，那是另一个项目了。
+`net.neoforged.fancymodloader:loader:47.2.2` —— 也就是说它是 **MinecraftForge 47.2.2**，
+包名是 `net.minecraftforge.*`。1.20.1 因此单独有一条 Forge 轨道，产物是另一个 jar，
+两条线互不干扰。
 
 ### 为什么能跨小版本
 
@@ -193,13 +190,14 @@ net.minecraftforge.fml.ModLoadingException: Mod 'oba' requires 'neoforge' '20.2.
 
 NeoForge 出了新版 Minecraft 时，照下面三步就能加一条：
 
-1. 复制 `tracks/1.20.5-1.20.6/` 成 `tracks/<新版本>/`；
+1. 复制 `versions/1.20.5-1.20.6-neoforge/` 成 `versions/<新版本>-neoforge/`；
 2. 改它 `gradle.properties` 里的 `minecraft_version`、`minecraft_version_range`、
    `neo_version`、`neo_version_range`、`archive_suffix` 和 `parchment_*`；
-3. `./gradlew -p tracks/<新版本> jar`。
+3. 把新目录名加进 `tools/sync-versions.ps1` 与 `tools/build-all.ps1` 的列表，
+   跑一次同步 + 构建。
 
-共享代码直接从仓库根目录取（见轨道里的 `build.gradle`），**不需要复制源码**，
-所以新轨道自动跟上所有功能改动。如果新版本又动了 API，
+共享代码由 `tools/sync-versions.ps1` 从 `engine/` 同步进各版本目录，**不需要手抄**，
+所以新轨道自动跟上引擎的所有功能改动。如果新版本又动了 API，
 照 `src/loader/` 下那两套 `TickHook` 实现的样子加一层运行时适配即可。
 
 
@@ -872,7 +870,7 @@ connectormod-2.0.0.jar      connectormod     2.0.0  3
 `tools/sync-versions.ps1` 同步过来的副本 —— 改逻辑请改 `engine/`，然后重跑那个脚本。
 
 ```
-1.20.1-forge/
+1.20.5-1.20.6-neoforge/
 │
 ├── README.md                        本文档（简体中文）
 ├── README.en.md                     English README
@@ -881,6 +879,7 @@ connectormod-2.0.0.jar      connectormod     2.0.0  3
 ├── gradle.properties                版本号、模组元数据、兼容版本范围
 ├── gradlew                          Gradle 包装器（8.14.3）
 ├── gradlew.bat                      同上，Windows 用
+├── mirror.init.gradle               把失效的 maven 主机改写到官方 CDN 镜像
 │
 ├── gradle/wrapper/                 Gradle 包装器的引导文件
 │
@@ -913,9 +912,9 @@ connectormod-2.0.0.jar      connectormod     2.0.0  3
 │   │   ├── Loader.java              存放当前版本装进来的加载器实现
 │   │   ├── LoaderEnv.java           加载器适配接口：列模组、取游戏目录
 │   │   ├── TickHook.java            服务器 tick 的挂载点接口
-│   │   └── forge/
-│   │       ├── ForgeEnv.java          Forge 的加载器适配实现
-│   │       └── ForgeTickHook.java     Forge 的 tick 挂载
+│   │   └── neoforge/
+│   │       ├── NeoForgeEnv.java       NeoForge 的加载器适配实现
+│   │       └── NeoForgeTickHook.java  NeoForge 的 tick 挂载（含跨小版本探测）
 │   │
 │   └── mod/                           游戏内那一半
 │       ├── ClientFont.java          
@@ -935,8 +934,7 @@ connectormod-2.0.0.jar      connectormod     2.0.0  3
 │   ├── oba-icon.png                 模组图标（256×256，模组列表里显示的那张）
 │   ├── oba-icon-128.png             同上，小尺寸一份
 │   └── META-INF/
-│       └── mods-1.20.1-forge.toml   模组描述文件（构建时展开占位符）
-│           （源文件叫这个名，打包时落成 mods.toml）
+│       └── neoforge.mods.toml       模组描述文件（构建时展开占位符）
 │
 └── docs/banner.svg               README 用的标题条
 ```
@@ -962,6 +960,9 @@ cd versions/1.21.1-neoforge && ./gradlew jar
 cd versions/1.20.1-forge    && ./gradlew jar
 ```
 
+如果你是从**版本分支**克隆的（比如 `1.21.1-neoforge`），分支里只有那一个版本，
+分支根目录就是它的 Gradle 工程，直接 `./gradlew jar`。
+
 | 版本 | 需要的 JDK | 备注 |
 |---|---|---|
 | 1.21.x（NeoForge） | **21** | |
@@ -979,8 +980,8 @@ cd versions/1.20.1-forge    && ./gradlew jar
 
 不需要装任何插件，IDEA 自带的 Gradle 支持就够了。
 
-**导入的是某个版本目录，不是仓库根。** 仓库根现在只是各版本的集合，
-真正的 Gradle 工程在 `versions/<版本>-<加载器>/` 里。
+**导入的是某个版本目录，不是仓库根。** 默认分支上是总览 + 引擎 + 脚本，
+真正的 Gradle 工程在 `versions/<版本>-<加载器>/` 里（版本分支上则在分支根目录）。
 
 **1. 导入**：`File → Open`，选你想开发的**那一个版本目录**，例如
 `versions/1.21.1-neoforge`（里面有 `build.gradle` 和 `settings.gradle`）。
