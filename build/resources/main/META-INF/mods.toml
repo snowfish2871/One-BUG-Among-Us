@@ -1,10 +1,10 @@
 modLoader="javafml"
-loaderVersion="[47,)"
+loaderVersion="[48,)"
 license="GPL-3.0-only"
 
 [[mods]]
 modId="oba"
-version="1.0.1"
+version="1.1.0"
 displayName="One BUG Among Us"
 authors="OBA contributors"
 # 模组列表里的图标，正方形 PNG
@@ -14,13 +14,13 @@ description='''One BUG Among Us (OBA) - a crash and error diagnostician for Forg
 [[dependencies.oba]]
 modId="forge"
 mandatory=true
-versionRange="[47,)"
+versionRange="[48,)"
 ordering="NONE"
 side="BOTH"
 
 [[dependencies.oba]]
 modId="minecraft"
 mandatory=true
-versionRange="[1.20.1,1.20.2)"
+versionRange="[1.20.2,1.20.5)"
 ordering="NONE"
 side="BOTH"
