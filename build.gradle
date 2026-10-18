@@ -32,7 +32,7 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 sourceSets {
     main {
         resources {
-            // 描述文件源名叫 mods-1.20.1-forge.toml，免得和别的加载器那份撞名
+            // 描述文件源名叫 mods-forge.toml，免得和别的加载器那份撞名
             exclude 'META-INF/mods.toml'
             exclude 'META-INF/neoforge.mods.toml'
         }
@@ -86,9 +86,9 @@ tasks.withType(ProcessResources).configureEach {
     ]
     inputs.properties replaceProperties
 
-    // 源文件叫 mods-1.20.1-forge.toml（带版本号是为了不和其他加载器那份撞名），
+    // 源文件叫 mods-forge.toml（带版本号是为了不和其他加载器那份撞名），
     // 落到 jar 里必须叫 mods.toml
-    filesMatching(['META-INF/mods-1.20.1-forge.toml']) {
+    filesMatching(['META-INF/mods-forge.toml']) {
         name = 'mods.toml'
         expand replaceProperties
     }
