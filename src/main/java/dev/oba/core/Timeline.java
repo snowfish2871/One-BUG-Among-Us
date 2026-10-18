@@ -67,6 +67,21 @@ public final class Timeline {
         return entries.size();
     }
 
+    // 一行日志的「形状」：先摘掉 "Caused by:" 这类挂在句首的标签，再把数字全部抹掉，
+    // 只留文字骨架。坏存档时同一句警告会连着打上百条，只差 index/坐标；
+    // 同一个异常也常同时以原句和 "Exception message: <原句>" 两种形态出现。
+    // 不摘标签、不抹数字，这两类重复都会被当成不同的结论。
+    private static final Pattern DIGITS = Pattern.compile("\\d+");
+    private static final Pattern LEADING_LABELS =
+            Pattern.compile("^(?:Caused by: |Exception message: |Suppressed: |\\+\\s*|!!\\s*)+");
+
+    public static String shapeOf(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        return DIGITS.matcher(LEADING_LABELS.matcher(text).replaceFirst("")).replaceAll("#");
+    }
+
     // 按离出事有多近排一份，最靠近末尾的排前面。
     // 报告里先讲出事当时，再往前追。
     public synchronized List<Entry> reversed() {

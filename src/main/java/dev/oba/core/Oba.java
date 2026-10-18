@@ -10,7 +10,7 @@ public final class Oba {
     public static final String ABBR = "OBA";
 
     // 版本号，会出现在每一种输出格式里
-    public static final String VERSION = "1.0.1";
+    public static final String VERSION = "1.1.0";
 
     // modId，必须和 neoforge.mods.toml 里的一致
     public static final String MOD_ID = "oba";

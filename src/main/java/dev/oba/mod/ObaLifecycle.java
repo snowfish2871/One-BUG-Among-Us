@@ -74,10 +74,10 @@ public final class ObaLifecycle {
             // 而 FMLCommonSetupEvent 要等所有模组构造完才触发 —— 挂在那边的话，
             // 只要有模组在构造阶段就炸，这一整场运行什么都采集不到
             DiagnosticAppender.install(diagnostics);
-            // 索引也要在这时候先建一份，而且要同步建完：异步的话会和下面那句
-            // armImmediateAnalysis 抢时间，第一份结论可能还是索引空空的时候出的
-            diagnostics.reindex(false, null);
-            diagnostics.armImmediateAnalysis();
+            // 索引挪到后台建。它要把每一个模组 jar 解开读一遍类名，
+            // 整合包大的时候这就是启动变慢的主因；而索引没好之前撞上的致命错误
+            // 会先攒在 verdictPending 里，建完立刻补一份结论，所以不用再抢时间
+            diagnostics.reindex(true, diagnostics::armImmediateAnalysis, false);
             // 记下此刻已有的崩溃报告，之后新出现的才算这次的
             diagnostics.rememberExistingCrashReports();
             // 索引还没建的时候先盯文件
@@ -97,7 +97,8 @@ public final class ObaLifecycle {
                 // 加载器还没准备好列模组，等一下服务器启动事件再补
                 LOGGER.debug("{}mod list not ready yet, will retry on server start", Oba.LOG_PREFIX);
             }
-            diagnostics.reindex(true, null);
+            // 构造函数里已经建过一份，这里只在 mods 目录变过时才重扫
+            diagnostics.reindex(true, null, false);
             watchdog.start();
             LOGGER.info("{}" + Lang.get("mod.enabled", Oba.VERSION, Loader.env().loaderName()),
                     Oba.LOG_PREFIX);
