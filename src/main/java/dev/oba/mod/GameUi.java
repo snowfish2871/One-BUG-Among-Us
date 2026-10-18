@@ -24,7 +24,7 @@ import java.util.function.UnaryOperator;
 public final class GameUi {
 
     // 引用要显示的东西
-    public static final String WIKI = "https://github.com/OneBUGAmongUs/oba";
+    public static final String WIKI = "https://github.com/snowfish2871/One-BUG-Among-Us";
 
     // 配色。跟控制台那套对齐：亮青做品牌色，红黄绿分别对应坏、警告、正常
     public static final int ACCENT = 0x4DF3FF;
