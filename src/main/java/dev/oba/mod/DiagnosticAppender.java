@@ -66,11 +66,13 @@ public final class DiagnosticAppender extends AbstractAppender {
             // WARN 及以上都进滚动窗口（不少模组把问题报在 WARN）；但只有 ERROR 和
             // FATAL 才触发分析，免得普通警告刷出一堆结论。
             //
-            // log4j2 的严重度是反着用 int 值的（FATAL=100 比 ERROR=200 更严重），
-            // 所以范围要写成至少和 ERROR 一样严重。isInRange 是最小严重度判断，
-            // 不是 min/max 区间：之前写成 isInRange(ERROR, FATAL) 是个空区间，
-            // 永远匹配不上，等于任何错误都不会触发诊断
-            boolean isError = level.isInRange(Level.ERROR, Level.ALL);
+            // 注意别用 isInRange：log4j2 的严重度是反着用 int 值的（FATAL=100 比
+            // INFO=400 更严重），isInRange(ERROR, ALL) 会被读成"从 ERROR 一直到 ALL"，
+            // 等于把 INFO/DEBUG 全算成错误。专用服务端实测过这个写法：一次 112 行、
+            // 一行 ERROR 都没有的启动，它数出「捕获到 2284 行错误」。isMoreSpecificThan
+            // 是"同等或更严重"，配 OFF 的排除就够了
+            boolean isError = isErrorLevel(level);
+            boolean isFatal = isFatalLevel(level);
 
             StringBuilder sb = new StringBuilder(160);
             if (event.getMessage() != null) {
@@ -115,9 +117,21 @@ public final class DiagnosticAppender extends AbstractAppender {
                     || Oba.MOD_ID.equals(event.getLoggerName())) {
                 return;
             }
-            diagnostics.onLogLine(line, isError, isError);
+            diagnostics.onLogLine(line, isError, isFatal);
         } catch (Throwable ignored) {
             // 诊断绝不能让日志本身出错
         }
+    }
+
+    /** 这条日志算不算"错误"：ERROR 及更严重（FATAL）。OFF 不算。 */
+    public static boolean isErrorLevel(Level level) {
+        return level != null && level != Level.OFF
+                && level.isMoreSpecificThan(Level.ERROR);
+    }
+
+    /** 只有 FATAL 才叫致命：ERROR 已经有人接住了，不需要立刻重算结论。 */
+    public static boolean isFatalLevel(Level level) {
+        return level != null && level != Level.OFF
+                && level.isMoreSpecificThan(Level.FATAL);
     }
 }
