@@ -1,36 +1,41 @@
-// NeoForge 轨道的模组入口（1.20.2 起，含 1.21.x）。
+// Forge 轨道的模组入口（1.20.1）。
 //
-// 这一份是各轨道自己的：@Mod 注解和事件类都来自 net.neoforged，
-// Forge 那边没有这些类。真正干活的逻辑都在共享的 ObaLifecycle 里。
+// 和 NeoForge 那份长得像，但注解和事件类全在 net.minecraftforge.* 下，
+// 两边没有共同的父类可用，所以只能各写一份。逻辑都在共享的 ObaLifecycle 里。
 package dev.oba.mod;
 
 import dev.oba.core.Oba;
-import dev.oba.loader.neoforge.NeoForgeEnv;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.neoforged.fml.loading.FMLEnvironment;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.GameShuttingDownEvent;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
-import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import dev.oba.loader.forge.ForgeEnv;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 
 @Mod(Oba.MOD_ID)
 public final class ObaMod {
 
     private final ObaLifecycle lifecycle = ObaLifecycle.get();
 
-    public ObaMod(IEventBus modBus) {
+    // Forge 的 @Mod 构造函数必须是**无参**的，这和 NeoForge 不一样：
+    // NeoForge 会把模组事件总线当参数注入，Forge 得自己从加载上下文里取。
+    // 写成带参数的会直接报 NoSuchMethodException: <init>()
+    public ObaMod() {
         // 先把加载器实现装进共享代码，后面所有取模组列表、取游戏目录的调用都走它
-        ObaLifecycle.registerSafely(() -> new NeoForgeEnv().init(), "loaderEnv");
+        ObaLifecycle.registerSafely(() -> new ForgeEnv().init(), "loaderEnv");
         // 语言要在最早的时候定下来：模组如果在构造阶段就崩，
         // FMLCommonSetupEvent 不会触发，后面那次读语言就没机会跑了
         EarlyLanguage.seedIfClient();
 
-        // 客户端怎么读语言是这一侧的事，塞给共享的生命周期去调
+        // 客户端怎么读语言是这一侧的事，塞给共享的生命周期去调。
+        // 服务端没有语言设置，而且客户端的类在服务端根本不该被加载，
+        // 所以先判环境再登记
         if (FMLEnvironment.dist == Dist.CLIENT) {
             lifecycle.setClientReadyAction(ClientLanguage::applyFromOptions);
             // 聊天栏的排版得按真字体宽度算，服务端没有字体这个概念
@@ -45,19 +50,20 @@ public final class ObaMod {
         lifecycle.start();
 
         // 事件注册同样单独兜一层：少了某个事件类型只该让对应功能失效
-        ObaLifecycle.registerSafely(() -> modBus.addListener(this::onCommonSetup), "commonSetup");
-        // tick 事件在 1.20.4 和 1.20.5 之间换过类，交给适配层按运行时探到的版本挂
+        ObaLifecycle.registerSafely(() -> {
+            IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+            modBus.addListener(this::onCommonSetup);
+        }, "commonSetup");
+        // 1.20.1 的 tick 只有一套事件，直接挂
         ObaLifecycle.registerSafely(
-                () -> lifecycle.watchdog().tickHook(NeoForgeEnv::tickHook).register(), "tick");
-        // 命令树由下面那个 onRegisterCommands 挂，别再往事件总线上注册 commands 实例：
-        // 它身上没有 @SubscribeEvent，NeoForge 会直接抛
-        // “class dev.oba.mod.ObaCommands has no @SubscribeEvent methods”
-        ObaLifecycle.registerSafely(() -> NeoForge.EVENT_BUS.register(this), "self");
-        // 语言同步只在客户端挂：服务端没有语言设置，
-        // 而且客户端的类在服务端根本不该被加载
+                () -> lifecycle.watchdog().tickHook(ForgeEnv::tickHook).register(), "tick");
+        // 命令树由下面那个 onRegisterCommands 挂，别再注册 commands 实例：
+        // 它身上没有 @SubscribeEvent，事件总线会当作无效监听器
+        ObaLifecycle.registerSafely(() -> MinecraftForge.EVENT_BUS.register(this), "self");
+        // 玩家进世界/连服务器时同步一次语言，中途改语言也能跟上
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ObaLifecycle.registerSafely(
-                    () -> NeoForge.EVENT_BUS.register(new ClientLanguage()), "clientLanguage");
+                    () -> MinecraftForge.EVENT_BUS.register(new ClientLanguage()), "clientLanguage");
         }
     }
 
@@ -84,12 +90,5 @@ public final class ObaMod {
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         lifecycle.onServerStopping();
-    }
-
-    // 游戏进程要结束时兜底。崩到 FML 都收不了场的情况下，
-    // 采集到的堆栈和分析结果也能留一份在 logs 目录里
-    @SubscribeEvent
-    public void onGameShuttingDown(GameShuttingDownEvent event) {
-        lifecycle.onGameShuttingDown();
     }
 }

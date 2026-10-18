@@ -1,15 +1,18 @@
-// 把玩家在游戏里选的语言告诉引擎，让报告语言跟着游戏走。
+// 把玩家在游戏里选的语言告诉引擎，让报告语言跟着游戏走（Forge 1.20.1 版）。
 // 只在客户端生效：专用服务器没有语言选项，那边由 JVM 区域或 -Doba.lang 决定。
 //
-// 这里没用 @EventBusSubscriber：那个注解是 NeoForge 20.4 才有的，
-// 20.2 上编译不过。改成由 ObaMod 在确认是客户端之后手动注册，
-// 既跨版本可用，也顺带避免了服务端加载客户端专属的类。
+// 和 NeoForge 那份的逻辑一样，区别全在包名：
+//   @SubscribeEvent 的注解   net.minecraftforge.eventbus.api
+//   登录事件                net.minecraftforge.client.event.ClientPlayerNetworkEvent$LoggingIn
+//
+// 不挂 @Mod.EventBusSubscriber：那是全局自动注册，这里由 ObaMod 在确认是客户端之后
+// 手动注册，顺带避免服务端去加载客户端专属的类。
 package dev.oba.mod;
 
 import dev.oba.core.Lang;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraft.client.Minecraft;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 public final class ClientLanguage {
 
