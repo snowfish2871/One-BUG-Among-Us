@@ -26,10 +26,13 @@ $versionsDir = Join-Path $root 'versions'
 
 # 每条轨道：目录名 / 用哪套加载器实现 / 本版本要哪份描述文件 / 排掉哪几份
 $tracks = @(
-    @{ name = '1.21.1-neoforge';        loader = 'neoforge'; keep = 'neoforge.mods.toml';     drop = @('mods.toml', 'mods-1.20.1-forge.toml') },
-    @{ name = '1.20.2-1.20.4-neoforge'; loader = 'neoforge'; keep = 'mods.toml';              drop = @('neoforge.mods.toml', 'mods-1.20.1-forge.toml') },
-    @{ name = '1.20.5-1.20.6-neoforge'; loader = 'neoforge'; keep = 'neoforge.mods.toml';     drop = @('mods.toml', 'mods-1.20.1-forge.toml') },
-    @{ name = '1.20.1-forge';           loader = 'forge';    keep = 'mods-1.20.1-forge.toml'; drop = @('mods.toml', 'neoforge.mods.toml') }
+    @{ name = '1.21.1-neoforge';        loader = 'neoforge'; keep = 'neoforge.mods.toml' },
+    @{ name = '1.20.2-1.20.4-neoforge'; loader = 'neoforge'; keep = 'mods.toml' },
+    @{ name = '1.20.5-1.20.6-neoforge'; loader = 'neoforge'; keep = 'neoforge.mods.toml' },
+    @{ name = '1.20.1-forge';           loader = 'forge';    keep = 'mods-forge.toml' },
+    @{ name = '1.20.2-1.20.4-forge';    loader = 'forge';    keep = 'mods-forge.toml' },
+    @{ name = '1.20.5-1.20.6-forge';    loader = 'forge';    keep = 'mods-forge.toml' },
+    @{ name = '1.21.1-forge';           loader = 'forge';    keep = 'mods-forge.toml' }
 )
 
 if (-not (Test-Path $engineJava)) { throw "找不到引擎源码目录: $engineJava" }
@@ -51,10 +54,10 @@ foreach ($t in $tracks) {
         # 这条轨道的加载器实现
         Copy-Item "$loaderRoot\$($t.loader)\*" $dstJava -Recurse -Force
 
-        # 资源：图标都带上，描述文件只要本加载器那份
+        # 资源：图标都带上，META-INF 里只留本轨道那一份描述文件
         Get-ChildItem $engineRes -Recurse -File | Where-Object {
             if ($_.Directory.Name -ne 'META-INF') { return $true }
-            return $_.Name -notin $t.drop
+            return $_.Name -eq $t.keep
         } | ForEach-Object {
             $rel = $_.FullName.Substring($engineRes.Length + 1)
             $target = Join-Path $dstRes $rel

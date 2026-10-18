@@ -31,6 +31,10 @@ public final class LogAnalyzer {
 
     private static final int EXCERPT_MAX = 400;
 
+    // 单行喂给正则的最大长度。超过这个长度的行（模组 dump、超长 NBT 转储）
+    // 截断后再匹配：既保住开头的关键词，又不给正则留回溯爆炸的机会
+    private static final int RULE_LINE_MAX = 4096;
+
     private LogAnalyzer() {
     }
 
@@ -234,7 +238,13 @@ public final class LogAnalyzer {
         captureEnvironment(lines, env);
 
         Set<String> seen = new LinkedHashSet<>();
+        // 兜底：万一某条规则在某种行上还是很慢，最多只让它耗两秒，
+        // 后面的规则不跑了 —— 宁可少认几条，也不能把游戏的日志线程拖死
+        long ruleDeadline = System.nanoTime() + 2_000_000_000L;
         for (Rule rule : RULES) {
+            if (System.nanoTime() > ruleDeadline) {
+                break;
+            }
             for (Hit hit : find(lines, rule.pattern())) {
                 Matcher m = hit.matcher();
                 List<String> groups = new ArrayList<>();
@@ -267,7 +277,18 @@ public final class LogAnalyzer {
                         }
                     }
                 }
-                String key = rule.id() + "|" + hit.excerpt();
+
+                // 混入（mixin）在找可选集成类时会把 "Error loading class: org/jetbrains/..." 打成 WARN。
+                // 这类库本来就不是模组自己要带的东西，缺了也不影响运行，报成"依赖缺失"只会误导。
+                if (groups.size() >= 1 && BENIGN_MISSING_CLASS_RULES.contains(rule.id())
+                        && isBenignMissingClass(groups.get(0))) {
+                    continue;
+                }
+                // 同一行日志只出一条结论：规则表里越专门的越靠前，
+                // 这样客户端类找不到不会被笼统地说成"依赖缺失"。
+                // 按"形状"（数字抹掉）去重：坏存档时同一句 region 警告只差 index，
+                // 逐条列出来会变成几十条一模一样的结论
+                String key = Timeline.shapeOf(hit.excerpt());
                 if (!seen.add(key)) {
                     continue;
                 }
@@ -334,6 +355,58 @@ public final class LogAnalyzer {
         }
     }
 
+    /** 缺了这些类几乎都不是模组的问题：它们随游戏、加载器或启动器一起发。 */
+    private static final Set<String> BENIGN_MISSING_CLASS_RULES =
+            Set.of("class.noclassdef", "class.classnotfound");
+
+    private static final String[] BENIGN_CLASS_PREFIXES = {
+            "org.jetbrains.annotations.", "org.intellij.", "kotlin.", "kotlinx.",
+            "com.google.", "org.apache.", "org.slf4j.", "io.netty.", "oshi.",
+            "org.objectweb.", "org.spongepowered.", "org.lwjgl.", "it.unimi.",
+            "com.electronwill.", "jdk.", "sun.", "javax.", "java.",
+    };
+
+    /**
+     * 缺一个库里的普通类，和缺一个模组自己的类，是完全不同的两件事：
+     * 前者往往只是某个可选集成没装，后者才是真的依赖缺失。
+     * 客户端专有类例外，它在服务端上必然缺，而且正是要报给用户的那一条。
+     */
+    private static boolean isBenignMissingClass(String cls) {
+        if (cls == null || cls.isEmpty()) {
+            return false;
+        }
+        String name = cls.replace('/', '.').trim();
+        if (name.startsWith("net.minecraft.client.")) {
+            return false;
+        }
+        for (String prefix : BENIGN_CLASS_PREFIXES) {
+            if (name.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 异常文本里稳定的那一小块：冒号之前的类型名。
+     *
+     * <p>完整异常消息里有版本号、模块名、被序列化的类名，同一份配置读坏了每行的消息都不一样。
+     * 拿整句当"这条结论播过没有"的键，等于每次都算新结论 —— 专用服务端上同一份 balm
+     * 配置错误二十五秒内播了六遍。</p>
+     */
+    public static String exceptionKind(String text) {
+        if (text == null) {
+            return "?";
+        }
+        String t = text.trim();
+        if (t.isEmpty()) {
+            return "?";
+        }
+        int colon = t.indexOf(':');
+        String kind = colon > 0 ? t.substring(0, colon) : t;
+        return kind.length() > 120 ? kind.substring(0, 120) : kind;
+    }
+
     private static List<Hit> find(List<String> lines, Pattern pattern) {
         List<Hit> out = new ArrayList<>();
         for (int i = 0; i < lines.size(); i++) {
@@ -341,7 +414,11 @@ public final class LogAnalyzer {
             if (line.isEmpty() || isCrashReportBoilerplate(line)) {
                 continue;
             }
-            Matcher m = pattern.matcher(line);
+            // 超长行不整条喂给正则：某些模组会往 DEBUG 里打几十 KB 的 dump，
+            // 在这种行上跑带分支的表达式会回溯到天荒地老（实机卡死过整个日志线程）。
+            // 截断不影响认出"这是个什么错误"，因为要的词都在开头
+            String subject = line.length() > RULE_LINE_MAX ? line.substring(0, RULE_LINE_MAX) : line;
+            Matcher m = pattern.matcher(subject);
             if (m.find()) {
                 String excerpt = line.trim();
                 if (excerpt.length() > EXCERPT_MAX) {
@@ -435,6 +512,72 @@ public final class LogAnalyzer {
                     Pattern.compile("Mixin (?:apply|transformation) (?:failed|error).*?(?:in|for) (\\S+)"),
                     0, 0),
 
+            // Sinytra Connector 的 intermediary 名字（class_1234 这种）看着像普通的类找不到，
+            // 但它说明的是 Fabric 模组少了桥接层。这条要排在通用类规则前面，
+            // 同一行日志只出一条结论时它才抢得到认领权
+            new Rule("connector.intermediary", "rule.connector_intermediary", Diagnosis.Severity.ERROR,
+                    Pattern.compile("\\b(?:class_\\d+|method_\\d+|field_\\d+)\\b"),
+                    0, 0),
+            // 服务端被塞进了仅客户端模组。客户端那边才有的类在服务端上根本不存在，
+            // 报出来就是一串 net/minecraft/client/... 的 NoClassDefFoundError。
+            // 这两条比下面的通用类规则更专门，得排在前面，否则会被笼统地当成"依赖缺失"
+            new Rule("server.client_class", "rule.server_client_class", Diagnosis.Severity.FATAL,
+                    Pattern.compile("(?:java\\.lang\\.)?NoClassDefFoundError: net[/.]minecraft[/.]client[/.]\\S+|"
+                            // Forge 1.20.1 的专用服务端用的是另一句：类被 RuntimeDistCleaner 拦住，
+                            // 报的是 RuntimeException 而不是 NoClassDefFoundError
+                            + "Attempted to load class net[/.]minecraft[/.]client[/.]\\S+ for invalid dist"),
+                    0, 0),
+
+            new Rule("server.client_class_notfound", "rule.server_client_class", Diagnosis.Severity.FATAL,
+                    Pattern.compile("(?:java\\.lang\\.)?ClassNotFoundException: net[/.]minecraft[/.]client[/.]\\S+"),
+                    0, 0),
+
+            // 加载器连描述文件都不收：只要 mods 目录里有一个这样的 jar，整个目录都不会被加载，
+            // 表现是"游戏起来了但一个模组都没有"。最典型的原因是 1.20.4 起（NeoForge 20.4+）
+            // 编译出来的包被装到 1.20.2~1.20.3 上，那里的 [[dependencies]] 还要求 mandatory 字段
+            new Rule("loader.invalid_mod_file", "rule.loader_invalid_modfile", Diagnosis.Severity.FATAL,
+                    Pattern.compile("(?:InvalidModFileException: [^\\n]{0,200}?|Missing required field \\w+ in dependency[^\\n]{0,160}|found an invalid mod file[^\\n]{0,160})"),
+                    0, 0),
+
+            // 地图自己坏掉的那一类。真正坏的是存档里的数据（实体、方块实体、区块的 NBT），
+            // 模组代码只是第一个去碰它的那个。这类必须把话说到"存档有问题"上，
+            // 否则用户会一直换模组，换到最后还是同样的崩
+            new Rule("world.ticking_entity", "rule.world_entity", Diagnosis.Severity.FATAL,
+                    Pattern.compile("Ticking entity|Exception while ticking entity|Error ticking entity"),
+                    0, 0),
+
+            new Rule("world.ticking_block_entity", "rule.world_block_entity", Diagnosis.Severity.FATAL,
+                    Pattern.compile("Ticking block entity|Exception while ticking block entity"),
+                    0, 0),
+
+            new Rule("world.chunk", "rule.world_chunk", Diagnosis.Severity.FATAL,
+                    Pattern.compile("Failed to load chunk|Error loading chunk|Chunk file at \\S+ is (?:missing|corrupt|too small)|"
+                            + "Uncompressed chunk data exceeds|Reached end of stream for chunk|"
+                            // 1.20.1 的专用服务端读到被截断的区块文件时打的是这两条：
+                            //   Region file .\world\region\r.0.0.mca has truncated header: 300
+                            //   Region file ... has an invalid sector at index: 0; sector 164 is out of bounds
+                            // 单条是 WARN，但一打就是几十条，正是"存档里的区块坏了"的样子
+                            + "Region file \\S+ (?:is (?:corrupt|missing)|has (?:a )?truncated header|has an invalid (?:sector|chunk)|"
+                            + "has an invalid (?:compression|length))|"
+                            + "Chunk \\S+ (?:is corrupt|has an invalid (?:compression|length))"),
+                    0, 0),
+
+            new Rule("world.dataversion", "rule.world_dataversion", Diagnosis.Severity.FATAL,
+                    Pattern.compile("Data version (\\d+) is (?:newer|not supported|too new)|Unknown data version|"
+                            + "Unable to read (?:level|world) data|Unsupported data version"),
+                    0, 0),
+
+            new Rule("world.entity_data", "rule.world_entity_data", Diagnosis.Severity.ERROR,
+                    Pattern.compile("(?:Failed|Couldn't|Unable|Error) to (?:load|read|parse) (?:entity|block entity|"
+                            + "tile entity|item stack|inventory) data|Invalid (?:entity|block entity) NBT|"
+                            + "Entity data (?:was|is) (?:invalid|corrupt)|Missing (?:entity|block entity) data"),
+                    0, 0),
+
+            new Rule("world.level_load", "rule.world_level_load", Diagnosis.Severity.FATAL,
+                    Pattern.compile("Failed to load level data or datapacks|Failed to load (?:the )?(?:world|level)|"
+                            + "Unable to load (?:the )?world"),
+                    0, 0),
+
             new Rule("class.noclassdef", "rule.noclassdef", Diagnosis.Severity.FATAL,
                     Pattern.compile("(?:java\\.lang\\.)?NoClassDefFoundError: (\\S+)"),
                     0, 1),
@@ -505,9 +648,11 @@ public final class LogAnalyzer {
                             + "Could not find (?:shader|include) file", Pattern.CASE_INSENSITIVE),
                     0, 0),
 
+            // 采样器名字是着色器自己起的（Sampler2 之类），不是模组 id：
+            // 把它当 modId 去查会得出"相关文件: Sampler2"这种误导性输出
             new Rule("graphics.sampler_missing", "rule.sampler", Diagnosis.Severity.WARN,
                     Pattern.compile("could not find sampler named (\\S+)", Pattern.CASE_INSENSITIVE),
-                    1, 0),
+                    0, 0),
 
             new Rule("graphics.framebuffer", "rule.framebuffer", Diagnosis.Severity.ERROR,
                     Pattern.compile("(?:framebuffer|FBO) (?:is )?(?:incomplete|not complete|invalid)|"
@@ -561,11 +706,7 @@ public final class LogAnalyzer {
 
             new Rule("connector.missing_mod", "rule.connector_missing", Diagnosis.Severity.FATAL,
                     Pattern.compile("Fabric mod (\\S+) (?:is not present|not found|is missing)"),
-                    1, 0),
-
-            new Rule("connector.intermediary", "rule.connector_intermediary", Diagnosis.Severity.ERROR,
-                    Pattern.compile("\\b(?:class_\\d+|method_\\d+|field_\\d+)\\b"),
-                    0, 0)
+                    1, 0)
     );
 
     // 给实时监听用的入口：单行文本也能立刻分类

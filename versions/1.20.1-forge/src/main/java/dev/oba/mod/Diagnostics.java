@@ -11,6 +11,7 @@ import dev.oba.core.Oba;
 import dev.oba.core.ModSource;
 import dev.oba.core.ProcessProbe;
 import dev.oba.core.Reports;
+import dev.oba.core.StackTraceParser;
 import dev.oba.loader.LoadedMod;
 import dev.oba.loader.Loader;
 
@@ -63,6 +64,8 @@ public final class Diagnostics {
     private volatile Diagnosis.Report culpritReport;
     private volatile String lastCrashSummary = "";
     private volatile boolean indexing;
+    // 建索引时 mods 目录的指纹，下次启动对一下就知道要不要重扫
+    private volatile String indexStamp = "";
     private volatile Consumer<String> output = s -> { };
 
     private final List<LogWatcher> watchers = new ArrayList<>();
@@ -73,6 +76,30 @@ public final class Diagnostics {
     private volatile boolean verdictPending;
     private final java.util.concurrent.atomic.AtomicBoolean analysisRunning =
             new java.util.concurrent.atomic.AtomicBoolean();
+
+    // 同一行错误连刷的抑制。实机 1.20.1 在启动阶段每帧都会打印一条
+    // "shader sampler missing"，一秒三十条，原来的实现每一条都触发一次分析、
+    // 每条分析都往日志播一次结论，日志被自己刷爆。这里按"去掉时间戳之后的正文"
+    // 做 5 秒窗口去重：重复的行只累计次数，不再排分析
+    private static final long REPEAT_WINDOW_MILLIS = 5000L;
+    private final Object repeatLock = new Object();
+    private String lastErrorExcerpt = "";
+    private long lastErrorMillis;
+    private int suppressedErrorLines;
+
+    // 一模一样的结论五分钟内只播一次，中间的重复次数攒起来一起报。
+    // 实机 1.20.1 启动阶段那个 shader 报错是每帧一条，两秒的窗口挡不住，
+    // 按五分钟算，一次会话里同一条结论最多播一次。
+    // 记的不止一条：服务端实测过同一份配置错误交替抛两种 ClassCastException，
+    // 只记最后一条的话两个键轮流覆盖，"抑制"就完全失效了
+    private static final long ANNOUNCE_WINDOW_MILLIS = 300000L;
+    private static final int ANNOUNCE_KEYS = 16;
+    private final Object announceLock = new Object();
+    private final Map<String, Long> announcedAt = new LinkedHashMap<>();
+    private final Map<String, Integer> suppressedByKey = new LinkedHashMap<>();
+    // 去掉 [时间] [线程/级别] 这类前缀，只留正文，重复行才能对上
+    private static final java.util.regex.Pattern LOG_PREFIX_PATTERN = java.util.regex.Pattern.compile(
+            "^\\[[^\\]]*\\]\\s*\\[[^\\]]*\\]\\s*(\\[[^\\]]*\\]\\s*)?");
 
     private Diagnostics() {
     }
@@ -168,7 +195,20 @@ public final class Diagnostics {
     // 按 FML 自己的模组列表重建索引，这样不在 mods 目录里的 jar
     //（开发环境、内嵌 jar）也能覆盖到
     public synchronized void reindex(boolean async, Runnable whenDone) {
+        reindex(async, whenDone, true);
+    }
+
+    // force 为 false 时，mods 目录没动过就不重建。
+    // 启动那次全靠这个：模组多的整合包有几百个 jar，一个个解开读一遍要好几秒，
+    // 而绝大多数启动模组根本没换过，重扫一遍纯属白等
+    public synchronized void reindex(boolean async, Runnable whenDone, boolean force) {
         if (indexing) {
+            return;
+        }
+        if (!force && index != null && modsStamp().equals(indexStamp)) {
+            if (whenDone != null) {
+                whenDone.run();
+            }
             return;
         }
         indexing = true;
@@ -191,15 +231,36 @@ public final class Diagnostics {
         }
     }
 
+    // 加载器本体、Minecraft 自己、启动器和 libraries/ 下的库都不是"模组"。
+    // NeoForge 会把 neoforge-*-universal.jar 也当一个 mod 交出来，收进索引以后
+    // 归因就会算到 neoforge 头上——实机 1.20.5 上真这么干过：可信度 99% 指着加载器自己
+    private static boolean isPlatformJar(Path file) {
+        String path = file.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
+        if (path.contains("/libraries/")) {
+            return true;
+        }
+        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        return name.startsWith("neoforge-") || name.startsWith("forge-")
+                || name.startsWith("minecraft") || name.startsWith("client-extra")
+                || name.startsWith("bootstraplauncher") || name.startsWith("securejarhandler")
+                || name.startsWith("fmlcore") || name.startsWith("fmlloader")
+                || name.startsWith("javafmllanguage") || name.startsWith("lowcodelanguage")
+                || name.startsWith("mclanguage");
+    }
+
     private void doReindex() {
         long start = System.currentTimeMillis();
-        List<ModSource> found = new ArrayList<>();
+        java.util.LinkedHashSet<Path> files = new java.util.LinkedHashSet<>();
         try {
             for (LoadedMod mod : Loader.env().mods()) {
                 try {
                     Path file = mod.file();
-                    if (file != null && !containsPath(found, file)) {
-                        found.add(ModSource.of(file));
+                    if (file != null) {
+                        Path abs = file.toAbsolutePath().normalize();
+                        // NeoForge 交出来的是联合文件系统里的虚拟路径，落不到磁盘上的不算
+                        if (Files.isRegularFile(abs) && !isPlatformJar(abs)) {
+                            files.add(abs);
+                        }
                     }
                 } catch (Throwable ignored) {
                     // 解析不了的条目就不进索引，没别的办法
@@ -208,15 +269,22 @@ public final class Diagnostics {
         } catch (Throwable t) {
             output.accept(Oba.LOG_PREFIX + Lang.get("mod.indexFailed", t));
         }
-        if (found.isEmpty()) {
-            // 开发环境或者调用得太早，退回扫磁盘
-            Path dir = resolveGameDir().resolve("mods");
-            found.addAll(Analyzer.loadMods(List.of(dir)));
+        // 加载器给的列表不一定全（有的版本只肯给虚拟路径），磁盘上的 jar 才是准的
+        try (java.util.stream.Stream<Path> stream = Files.list(resolveGameDir().resolve("mods"))) {
+            stream.filter(p -> p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar"))
+                    .filter(Files::isRegularFile)
+                    .filter(p -> !isPlatformJar(p))
+                    .sorted()
+                    .forEach(p -> files.add(p.toAbsolutePath().normalize()));
+        } catch (Exception ignored) {
+            // 目录不存在就是没装模组，索引里只剩加载器交代的那几个
         }
+        List<ModSource> found = scan(new ArrayList<>(files));
         ClassIndex built = Analyzer.buildIndex(found);
         this.sources = List.copyOf(found);
         this.index = built;
         this.byModId = ModSource.indexByModId(this.sources);
+        this.indexStamp = modsStamp();
         long ms = System.currentTimeMillis() - start;
         output.accept(Oba.LOG_PREFIX + Lang.get("mod.indexDone",
                 sources.size(), built.classCountTotal(), built.packageCountTotal(), ms));
@@ -225,6 +293,82 @@ public final class Diagnostics {
             verdictPending = false;
             scheduler.execute(this::runAnalysis);
         }
+    }
+
+    // 挨个解开 jar、读类名列表，是全流程里最费时间的一段。
+    // 模组一多就按核数并行开，顺序保持和输入一致，结论里点名的先后才不会变
+    private static List<ModSource> scan(List<Path> files) {
+        List<ModSource> out = new ArrayList<>(files.size());
+        if (files.isEmpty()) {
+            return out;
+        }
+        if (files.size() < 8) {
+            for (Path f : files) {
+                ModSource s = scanOne(f);
+                if (s != null) {
+                    out.add(s);
+                }
+            }
+            return out;
+        }
+        int threads = Math.max(2, Math.min(8, Runtime.getRuntime().availableProcessors()));
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads, r -> {
+            Thread t = new Thread(r, "oba-index");
+            t.setDaemon(true);
+            return t;
+        });
+        try {
+            List<java.util.concurrent.Future<ModSource>> futures = new ArrayList<>(files.size());
+            for (Path f : files) {
+                futures.add(pool.submit(() -> scanOne(f)));
+            }
+            for (java.util.concurrent.Future<ModSource> future : futures) {
+                try {
+                    ModSource s = future.get();
+                    if (s != null) {
+                        out.add(s);
+                    }
+                } catch (Throwable ignored) {
+                    // 单个 jar 读坏了不该拖垮整份索引
+                }
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        return out;
+    }
+
+    private static ModSource scanOne(Path file) {
+        try {
+            return ModSource.of(file);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    // mods 目录的指纹：文件名 + 大小 + 修改时间。
+    // 用来判断"这一份索引还新不新鲜"，比全量重扫便宜得多
+    private String modsStamp() {
+        Path dir = resolveGameDir().resolve("mods");
+        StringBuilder sb = new StringBuilder();
+        try (java.util.stream.Stream<Path> stream = Files.list(dir)) {
+            List<Path> jars = stream
+                    .filter(p -> p.getFileName().toString().toLowerCase().endsWith(".jar"))
+                    .sorted()
+                    .toList();
+            for (Path p : jars) {
+                sb.append(p.getFileName()).append('|');
+                try {
+                    sb.append(Files.size(p)).append('|').append(Files.getLastModifiedTime(p).toMillis());
+                } catch (Exception ignored) {
+                    // 读不到属性的就不参与指纹，大不了下次重建
+                }
+                sb.append('\n');
+            }
+        } catch (Exception ignored) {
+            // 目录不存在就当作空
+        }
+        return Integer.toHexString(sb.toString().hashCode()) + ":" + sb.length();
     }
 
     private static boolean containsPath(List<ModSource> list, Path p) {
@@ -255,15 +399,36 @@ public final class Diagnostics {
         }
         if (fatal && armed) {
             // 已经是致命错误，多半马上就崩了。等去抖动可能等不到进程退出，
-            // 所以立刻出一份结论，别把这次运行白丢
-            runAnalysis();
+            // 所以立刻出一份结论，别把这次运行白丢。
+            // 注意只能排到分析线程上：这里是 log4j 的 appender 线程，
+            // 直接在这儿跑分析会把整个游戏的日志写盘堵住 —— 实机就是这么卡死的
+            scheduleImmediateAnalysis();
         } else if (error) {
-            // 不一定致命但也是错误的行同样值得看一眼，靠去抖动让一串报错只出一份报告
-            scheduleAnalysis();
+            // 不一定致命但也是错误的行同样值得看一眼，靠去抖动让一串报错只出一份报告。
+            // 但每帧都刷的同一条错误不能这么算：只累计次数，不再排分析
+            if (isRepeat(line)) {
+                suppressedErrorLines++;
+            } else {
+                scheduleAnalysis();
+            }
         } else if (fatal) {
             // 索引还没建好就出错了。这时候分析只会得到一份"没有栈帧能归属到模组"的
             // 结论，先记下来，等索引建好再补一次
             verdictPending = true;
+        }
+    }
+
+    // 判断这一行是不是刚才那条的重复。日志里每帧刷的那条错误，时间戳和线程名会变，
+    // 正文是一模一样的，所以比正文。窗口内重复的返回 true，调用方只累计不排分析
+    private boolean isRepeat(String line) {
+        String excerpt = LOG_PREFIX_PATTERN.matcher(line).replaceFirst("");
+        long now = System.currentTimeMillis();
+        synchronized (repeatLock) {
+            boolean same = excerpt.equals(lastErrorExcerpt)
+                    && now - lastErrorMillis < REPEAT_WINDOW_MILLIS;
+            lastErrorExcerpt = excerpt;
+            lastErrorMillis = now;
+            return same;
         }
     }
 
@@ -305,6 +470,17 @@ public final class Diagnostics {
         } finally {
             analysisRunning.set(false);
         }
+    }
+
+    // 致命错误要走这条：只负责排到分析线程，调用方（log4j 的 appender 线程）立刻返回
+    private void scheduleImmediateAnalysis() {
+        if (!analysisQueued.compareAndSet(false, true)) {
+            return;
+        }
+        scheduler.schedule(() -> {
+            analysisQueued.set(false);
+            runAnalysis();
+        }, 0L, TimeUnit.MILLISECONDS);
     }
 
     private void scheduleAnalysis() {
@@ -433,6 +609,7 @@ public final class Diagnostics {
     // 往日志里打一句简短结论，完整报告留着随时可查
     private void announce(Diagnosis.Report report) {
         Diagnosis.Finding primary = report.primarySuspect();
+        StackTraceParser.AttributedFrame frame = null;
         StringBuilder sb = new StringBuilder();
         if (primary == null) {
             if (report.issues().isEmpty()) {
@@ -444,7 +621,7 @@ public final class Diagnostics {
         } else {
             sb.append(Oba.LOG_PREFIX)
               .append(Lang.get("mod.locate", primary.display(), primary.fileName()));
-            var frame = primary.firstLocatedFrame();
+            frame = primary.firstLocatedFrame();
             if (frame != null) {
                 sb.append("\n").append(Oba.LOG_PREFIX).append(Lang.get("mod.location", frame.location()));
             }
@@ -458,10 +635,50 @@ public final class Diagnostics {
               .append(Lang.get("mod.reportHint"));
             lastCrashSummary = primary.fileName() + " → " + (frame == null ? "?" : frame.location());
         }
-        // 出了事就把完整报告落到 logs 目录，玩家什么都不用做
-        Path written = reporter.writeIfNew(report, Lang.get("report.reason.crash"));
+        // 同一条结论五分钟内只播一次。一帧刷一条的错误会让这里一秒被调三十次，
+        // 每次都播一遍就等于自己把日志刷爆；中间攒下的重复次数留着下次一起报。
+        // 键里只放稳定的部分：异常类型（冒号之前）+ 元凶文件 + 第一个可定位栈帧。
+        // 完整异常消息里有版本号、模块名和类名，同一次配置读取失败每行都不一样，
+        // 拿它当键等于每次都算新结论 —— 服务端实测同一份 balm 配置错误 25 秒播了六遍
+        String kind = primary == null || primary.throwables().isEmpty()
+                ? "?"
+                : LogAnalyzer.exceptionKind(primary.throwables().get(0));
+        String where = frame == null ? "?" : frame.location();
+        String verdictKey = primary == null
+                ? "issues:" + (report.issues().isEmpty() ? "" : report.issues().get(0).rule())
+                : primary.fileName() + "|" + kind + "|" + where;
+        int repeats;
+        synchronized (announceLock) {
+            long now = System.currentTimeMillis();
+            Long seen = announcedAt.get(verdictKey);
+            if (seen != null && now - seen < ANNOUNCE_WINDOW_MILLIS) {
+                suppressedByKey.merge(verdictKey, 1, Integer::sum);
+                return;
+            }
+            repeats = suppressedByKey.getOrDefault(verdictKey, 0);
+            suppressedByKey.remove(verdictKey);
+            announcedAt.put(verdictKey, now);
+            while (announcedAt.size() > ANNOUNCE_KEYS) {
+                String eldest = announcedAt.keySet().iterator().next();
+                announcedAt.remove(eldest);
+            }
+            while (suppressedByKey.size() > ANNOUNCE_KEYS) {
+                String eldest = suppressedByKey.keySet().iterator().next();
+                suppressedByKey.remove(eldest);
+            }
+        }
+        // 出了事就把完整报告落到 logs 目录，玩家什么都不用做。
+        // 只有警告级别、又没指出任何模组的那种命中不值得单开一个文件：
+        // 实机上"着色器缺采样器"这类每帧一条的 WARN 会让每次启动都多一份没人看的报告
+        boolean worthAFile = primary != null || report.issues().stream().anyMatch(
+                issue -> issue.severity() == Diagnosis.Severity.FATAL
+                        || issue.severity() == Diagnosis.Severity.ERROR);
+        Path written = worthAFile ? reporter.writeIfNew(report, Lang.get("report.reason.crash")) : null;
         if (written != null) {
             sb.append("\n").append(Oba.LOG_PREFIX).append(Lang.get("report.written", written));
+        }
+        if (repeats > 0) {
+            sb.append("\n").append(Oba.LOG_PREFIX).append(Lang.get("mod.sameVerdict", repeats));
         }
         String text = sb.toString();
         output.accept(text);

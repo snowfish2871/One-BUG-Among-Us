@@ -1,0 +1,30 @@
+---- Minecraft Crash Report ----
+// Quite honestly, I wouldn't worry myself about that.
+
+Time: 2026-10-10 11:35:02
+Description: Rendering screen
+
+java.lang.NoSuchMethodError: 'void me.jellysquid.mods.sodiumextra.mixin.MixinOptionsScreen.apply()'
+	at me.jellysquid.mods.sodiumextra.mixin.MixinOptionsScreen.apply(MixinOptionsScreen.java:47)
+	at me.jellysquid.mods.sodiumextra.client.SodiumExtraClientMod.onScreenInit(SodiumExtraClientMod.java:88)
+	at org.sinytra.connector.transformer.TransformerImpl.remap(TransformerImpl.java:100)
+	at net.fabricmc.loader.impl.FabricLoaderImpl.invokeEntrypoint(FabricLoaderImpl.java:50)
+	at net.minecraft.client.gui.screens.Screen.init(Screen.java:300)
+
+A detailed walkthrough of the error, its code path and all known details is as follows:
+---------------------------------------------------------------------------------------
+
+-- Head --
+	Thread: Render thread
+	Suspected Mods: Sodium Extra (sodiumextra)
+
+-- System Details --
+	Minecraft Version: 1.21.1
+	NeoForge Version: 21.1.256
+
+-- Mod List --
+	Sodium|sodium|0.6.5|sodium-0.6.5.jar
+	Awesome Machines|awesomemachines|2.1.0|awesome-machines-2.1.0.jar
+	Cool Stuff|coolstuff|1.0.0|coolstuff-1.0.0.jar
+	Sodium Extra|sodiumextra|0.6.0|sodium-extra-0.6.0.jar
+	Sinytra Connector|connectormod|2.0.0|connectormod-2.0.0.jar

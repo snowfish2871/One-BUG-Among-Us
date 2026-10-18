@@ -6,6 +6,8 @@
 
 **面向 Minecraft 1.20.1 ~ 1.21.x 的模组崩溃诊断工具**（Forge 与 NeoForge 都支持）
 
+**他的使命就是解决问题，当问题解决时他的任务就完成了，也就没有任何留着mods文件夹的必要了**
+
 游戏崩了，日志里几千行堆栈看不出是谁干的。OBA 把这件事收敛成一句能照着做的结论：
 **哪个 jar、哪个类的哪一行、以及为什么怀疑它。**
 
@@ -34,6 +36,7 @@
 - [事故时间线](#事故时间线)
 - [诊断报告](#诊断报告)
 - [使用方式](#使用方式)
+- [实现原理](#实现原理)
 - [定位原理](#定位原理)
 - [MCreator 识别](#mcreator-识别)
 - [图形类模组专项](#图形类模组专项)
@@ -44,6 +47,7 @@
 - [验证](#验证)
 - [已知限制](#已知限制)
 - [常见问题](#常见问题)
+- [变更记录](#变更记录)
 - [参与贡献](#参与贡献)
 - [致谢](#致谢)
 - [许可协议](#许可协议)
@@ -96,29 +100,32 @@ Connector 跑在 NeoForge 上崩掉 —— 这些各有各的判断依据，不�
 
 - **你正在看的是默认分支**（总览）：项目文档、共享引擎的权威副本 `engine/`、
   加载器适配实现 `src/loader/`、构建与验证脚本 `tools/`、故意做坏的样例 `examples/`。
-  在这一份上可以一次把四个版本的 jar 全构建出来。
+  在这一份上可以一次把七个版本的 jar 全构建出来。
 - **每个 Minecraft 版本区间一条分支**，有它自己的 `src/main`、`build.gradle`
   和 README，切过去就能单独构建、单独改，不用管别的版本。
 
 | 分支 | 覆盖的 Minecraft | 加载器 |
 |---|---|---|
 | `1.21.1-neoforge` | 1.21 ~ 1.21.x | NeoForge 21.1+ |
+| `1.21.1-forge` | 1.21.1 | Forge 52 |
 | `1.20.5-1.20.6-neoforge` | 1.20.5 / 1.20.6 | NeoForge 20.5 / 20.6 |
+| `1.20.5-1.20.6-forge` | 1.20.5 / 1.20.6 | Forge 50 |
 | `1.20.2-1.20.4-neoforge` | 1.20.2 / 1.20.3 / 1.20.4 | NeoForge 20.2 / 20.3 / 20.4 |
+| `1.20.2-1.20.4-forge` | 1.20.2 / 1.20.3 / 1.20.4 | Forge 49 |
 | `1.20.1-forge` | 1.20.1 | Forge 47 |
 
 **想看某个版本的源码，就切到对应分支**：
 
 ```bash
 # 只关心一个版本，克隆时就指定分支
-git clone -b 1.20.1-forge https://github.com/OneBUGAmongUs/oba.git
+git clone -b 1.20.1-forge https://github.com/snowfish2871/One-BUG-Among-Us.git
 
 # 已经克隆过了
 git switch 1.21.1-neoforge
 ```
 
 要改的是**诊断逻辑本身**（判据、打分、报告排版），改默认分支上的 `engine/`，
-再跑 `tools/sync-versions.ps1` 把引擎同步进四个版本目录 —— 版本目录里的
+再跑 `tools/sync-versions.ps1` 把引擎同步进七条版本轨道 —— 版本目录里的
 `src/main/java/dev/oba/` 是同步出来的副本，直接手改会在下次同步时被覆盖。
 要改的是**加载器相关**的东西（`@Mod` 入口、事件注册、tick 适配），
 改 `src/loader/neoforge/` 或 `src/loader/forge/`。
@@ -134,15 +141,39 @@ git switch 1.21.1-neoforge
 
 | 轨道 | Minecraft | 加载器 | Java | 编译目标 | 状态 |
 |---|---|---|---|---|---|
-| **1.21.x** | 1.21 ~ 1.21.x | NeoForge 21.1+ | 21 | `1.21.1` / `21.1.256` | 已实机验证 |
-| **1.20.2 ~ 1.20.4** | 1.20.2 / 1.20.3 / 1.20.4 | NeoForge 20.2 / 20.3 / 20.4 线 | 17 | `1.20.2` / `20.2.93` | **已实机验证** |
-| **1.20.5 ~ 1.20.6** | 1.20.5 / 1.20.6 | NeoForge 20.5 / 20.6 线 | 21 | `1.20.5` / `20.5.21-beta` | **已实机验证** |
-| **1.20.1** | 1.20.1 | **Forge** 47 线 | 17 | `1.20.1` / `47.4.26` | **已实机验证** |
+| **1.21.x** | 1.21 ~ 1.21.x | NeoForge 21.1+ | 21 | `1.21.1` / `21.1.256` | 1.1.0 已实机验证 |
+| **1.21.1** | 1.21.1 | **Forge** 52 线 | 21 | `1.21.1` / `52.1.20` | 已出包，客户端与服务端都验证过 |
+| **1.20.5 ~ 1.20.6** | 1.20.5 / 1.20.6 | NeoForge 20.5 / 20.6 线 | 21 | `1.20.5` / `20.5.21-beta` | 1.1.0 已实机验证 |
+| **1.20.5 ~ 1.20.6** | 1.20.6 | **Forge** 50 线 | 21 | `1.20.6` / `50.2.14` | 已出包，客户端与服务端都验证过 |
+| **1.20.2 ~ 1.20.4** | 1.20.2 / 1.20.3 / 1.20.4 | NeoForge 20.2 / 20.3 / 20.4 线 | 17 | `1.20.2` / `20.2.93` | 1.1.0 已实机验证 |
+| **1.20.2 ~ 1.20.4** | 1.20.2 / 1.20.3 / 1.20.4 | **Forge** 49 线 | 17 | `1.20.4` / `49.2.13` | 已出包，客户端与服务端都验证过 |
+| **1.20.1** | 1.20.1 | **Forge** 47 线 | 17 | `1.20.1` / `47.4.26` | 1.1.0 已实机验证 |
 
 > **1.20.1 走的是 Forge，不是 NeoForge。** 那会儿 NeoForge 还没独立出来 ——
 > 加载器还叫 MinecraftForge，包名是 `net.minecraftforge.*`，和现在的
 > `net.neoforged.*` 是两套完全不同的东西。所以 1.20.1 单独有一条 Forge 轨道。
 > **1.20 不在支持范围内**：那是最早的 1.20，两边都还没就位。
+
+> 表里的「1.1.0 已实机验证」是拿真实整合包跑出来的：七个客户端各装 10~18 个模组文件
+> （按 Modrinth 的版本清单挑，前置依赖递归补齐），都能进主菜单，索引落在
+> 1802~4958 个类、383~1150 个包、68~186 ms。加载器和 Minecraft 自己的 jar 不算模组，
+> 不进索引：早先把它们算进去会得出「1 万多个类」这种虚高的数字，归因还可能指着 neoforge 自己。
+
+> 1.20.3 上有两个坑值得记一笔：装 1.20.4 编译的模组会让整个 mods 目录被判 invalid
+> （20.2~20.3 的 `[[dependencies]]` 还要求 `mandatory` 字段），以及这台机器的 USB 声卡
+> 要 `ALSOFT_DRIVERS=null` 才过得了音频初始化。两件事都不影响结论，但会让人以为「模组没加载」。
+
+> 三条 1.20.2 以上的 Forge 轨道**这一版都出了包**，其中两条已经在专用服务端上跑过。
+> 它们卡了很久，最后查明跟镜像无关：这台机器的浏览器走 `127.0.0.1:7897` 的系统代理，
+> 而 Java 默认直连 —— 直连 `maven.minecraftforge.net` 只有 4 KB/s 左右，同一个 userdev
+> 文件走代理 2.7 秒下完。在 `gradle.properties` 里补上 `systemProp.https.proxyHost` /
+> `proxyPort` 之后，三条轨道分别用 2m38s、108s、73s 建出了 jar。
+>
+> 顺手修了两处构建脚本：Forge 1.20.5 起官方取消了 reobf，`reobfJar` 任务不再存在，
+> 两条轨道的 `build.gradle` 改成按任务是否存在决定要不要挂 `finalizedBy`；1.20.2 的加载器
+> 是 48 线，`loaderVersion` 从 `[49,)` 放宽到 `[48,)`，1.21.1 的 Minecraft 区间从
+> `[1.21,1.22)` 收成 `[1.21.1,1.21.2)`。另外 Forge 官方没有 1.20.5 的构建
+> （metadata 里 1.20.5 线是 0 个版本），所以 `1.20.5-1.20.6-forge` 实际只覆盖 1.20.6。
 
 ### 加载器适配层
 
@@ -288,7 +319,7 @@ NeoForge 出了新版 Minecraft 时，照下面三步就能加一条：
 
 ### 游戏内
 
-1. 把 `oba-1.0.1.jar` 放进 `.minecraft/mods/`
+1. 把 `oba-mc1.21.1-1.1.0.jar` 放进 `.minecraft/mods/`
 2. 启动游戏
 
 此后**不需要输入任何命令**。一旦出错，结论会自己出现在日志和聊天栏，
@@ -307,19 +338,19 @@ NeoForge 出了新版 Minecraft 时，照下面三步就能加一条：
 
 ```bash
 # 自动找到 .minecraft，分析最新崩溃报告，并把报告写进 logs
-java -jar oba-1.0.1.jar analyze
+java -jar oba-mc1.21.1-1.1.0.jar analyze
 
 # 指定游戏目录（路径带空格时，加不加引号都能识别）
-java -jar oba-1.0.1.jar analyze --game-dir "D:\我的 游戏\.minecraft"
+java -jar oba-mc1.21.1-1.1.0.jar analyze --game-dir "D:\我的 游戏\.minecraft"
 
 # 直接喂一个崩溃报告
-java -jar oba-1.0.1.jar analyze crash-reports/crash-2026-10-09_18.03.20-client.txt
+java -jar oba-mc1.21.1-1.1.0.jar analyze crash-reports/crash-2026-10-09_18.03.20-client.txt
 
 # 列模组 + 查重复 + 查 MCreator + 标出 Fabric 模组
-java -jar oba-1.0.1.jar mods --game-dir "D:\MC\.minecraft"
+java -jar oba-mc1.21.1-1.1.0.jar mods --game-dir "D:\MC\.minecraft"
 
 # 实时监听，一边玩一边报
-java -jar oba-1.0.1.jar watch "D:\MC\.minecraft\logs\latest.log"
+java -jar oba-mc1.21.1-1.1.0.jar watch "D:\MC\.minecraft\logs\latest.log"
 ```
 
 ### 试用自带样例
@@ -328,16 +359,16 @@ java -jar oba-1.0.1.jar watch "D:\MC\.minecraft\logs\latest.log"
 
 ```bash
 # NeoForge 模组崩溃
-java -jar oba-1.0.1.jar analyze examples/crash-reports/crash-2026-10-09_18.03.20-client.txt
+java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-09_18.03.20-client.txt
 
 # Fabric 模组经 Connector 崩溃
-java -jar oba-1.0.1.jar analyze examples/crash-reports/crash-2026-10-10_11.35.02-client.txt
+java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_11.35.02-client.txt
 
 # F3+C 手动调试崩溃
-java -jar oba-1.0.1.jar analyze examples/crash-reports/crash-2026-10-10_16.47.12-client.txt
+java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_16.47.12-client.txt
 
-java -jar oba-1.0.1.jar mods     --game-dir examples
-java -jar oba-1.0.1.jar mcreator --game-dir examples
+java -jar oba-mc1.21.1-1.1.0.jar mods     --game-dir examples
+java -jar oba-mc1.21.1-1.1.0.jar mcreator --game-dir examples
 ```
 
 预期结果：第一份指向 `awesome-machines-2.1.0.jar` 的 `MachineRegistry.java:143`；
@@ -356,17 +387,17 @@ java -jar oba-1.0.1.jar mcreator --game-dir examples
 不带参数直接跑就是菜单：
 
 ```bash
-java -jar oba-1.0.1.jar
+java -jar oba-mc1.21.1-1.1.0.jar
 ```
 
 ```
 ╔════════════════════════════════════════════════════════════════╗
-║  ◈ One BUG Among Us CLI                             OBA v1.0.1 ║
+║  ◈ One BUG Among Us CLI                             OBA v1.1.0 ║
 ╚════════════════════════════════════════════════════════════════╝
 
   工作目录    D:\hmcl\.minecraft
   状态        ● 就绪
-  构建        One BUG Among Us 1.0.1
+  构建        One BUG Among Us 1.1.0
 
   • 选择操作 ──────────────────────────────────────────────────────
 
@@ -403,7 +434,7 @@ java -jar oba-1.0.1.jar
 
 ```
 ╔════════════════════════════════════════════════════════════╗
-║  ◈ One BUG Among Us                              OBA v1.0.1 ║
+║  ◈ One BUG Among Us                              OBA v1.1.0 ║
 ╚════════════════════════════════════════════════════════════╝
 
   • 选择操作 ──────────────────────────────────────────────
@@ -422,7 +453,7 @@ java -jar oba-1.0.1.jar
     /oba analyze <file> 诊断指定的某个文件
 
   带颜色标记的都能点。
-  https://github.com/OneBUGAmongUs/oba
+  https://github.com/snowfish2871/One-BUG-Among-Us
 ```
 
 第一项（反白条那条）是推荐动作，它本身就是第 1 项，也点得动；所以下面接着从 `[2]` 编号。
@@ -520,7 +551,7 @@ OBA 会把日志整理成一条带时间戳的时间线，逐条标明是哪个�
 每份报告开头都会说明是什么原因触发的：
 
 ```
-OBA v1.0.1
+OBA v1.1.0
 由捕获到的错误触发
 报告内容为只读诊断结果，未对任何文件做出改动。
 ════════════════════════════════════════════════════════════════════════
@@ -671,8 +702,8 @@ oba version / help
 
 
 ```bash
-java -jar oba-1.0.1.jar analyze --lang en --game-dir examples
-OBA_LANG=en java -jar oba-1.0.1.jar mods --game-dir examples
+java -jar oba-mc1.21.1-1.1.0.jar analyze --lang en --game-dir examples
+OBA_LANG=en java -jar oba-mc1.21.1-1.1.0.jar mods --game-dir examples
 ```
 
 所有文案集中在一张表里（`engine/main/java/dev/oba/core/Lang.java`），以 `namespace.key` 形式索引。
@@ -685,6 +716,59 @@ OBA_LANG=en java -jar oba-1.0.1.jar mods --game-dir examples
 > 任何语言缺键，自测台会直接失败。
 
 ---
+
+## 实现原理
+
+一句话：把「游戏说了什么」「进程当时在干什么」「这些类分别装在哪个 jar 里」三份材料对齐，
+再用规则和打分从里面挑出最可能的那一个。
+
+### 三份材料怎么进到同一个地方
+
+- **日志**。启动时定位 `logs/latest.log`，从第一行开始跟着读，同时注册一个进程内的日志回调。
+  两条路的行都先进同一个入口，打一遍同一个正则，拿到时间、线程名、级别、logger、正文。
+  之后「是不是错误」只看归一化后的文本，不看这条消息是不是恰好从 `[Render thread/WARN]` 来的。
+- **进程**。守护线程每 250 ms 记一次所有线程的名字、状态和栈顶帧，只保留有变化的快照，
+  既给死锁检测用，也给「事故时间线」用。
+- **模组**。`mods/` 目录扫一遍，读每个 jar 的描述文件和类列表，建「类名 → jar」的倒排索引。
+  索引和模组目录的指纹（每个 jar 的名字、大小、修改时间）绑在一起，指纹没变就不重建。
+
+### 从一条错误到一条结论
+
+1. **归一化**。去掉时间戳、内存地址、线程号这些每次都变的部分，剩下的当去重键。
+   同一行刷一百遍也只算一次。
+2. **认规则**。一条一条正则往下试，命中的按「词的强度」排队：`connector.intermediary`
+   这种点到具体加载器的排最前，泛泛的 `class.noclassdef` 排后面。每行日志只产出一条结论，
+   否则一次崩溃会在清单里刷出七八条同源条目。
+   库命名空间里的类缺失不算结论：`org.jetbrains`、`kotlin`、`com.google`、`org.slf4j`
+   这些前缀的类找不到，多半是模组把可选集成当软依赖，报出来只是噪声；模组自己的包名缺失照报。
+3. **找元凶**。堆栈里的每一帧拿去索引里反查，命中哪个 jar 就得一票；帧越靠上、越具体，票越重。
+   反查不到归属的类名单独列出来，提示是哪一族缺失。
+4. **打分合并**。同一条规则、同一个模组的多条命中并成一条，票数加总，再和旁证
+   （这个模组是不是已经明确坏过、是不是 MCreator 生成、是不是经 Connector 加载的）相乘。
+5. **落地**。结论算完一次性交给渲染层。终端按字符列排，游戏内按聊天栏的像素宽度重排。
+   同一份数据，两种排版。
+
+### 为什么能跨版本
+
+诊断逻辑全在 `engine/` 里，不碰任何加载器 API：它读的是日志文本、线程栈、jar 文件、
+堆栈字符串。和具体版本绑定的只有薄薄一层：加载器入口（`@Mod`、事件总线、tick 回调）、
+崩溃钩子与「当前是不是客户端」的判断、客户端专有的字体度量和聊天栏宽度。
+
+换一个大版本，改的是这一层，引擎照旧。`tools/sync-versions.ps1` 把 `engine/` 原样复制进
+每条轨道，就是为了让「改一处、七条轨道一起生效」这件事只有一种做法。
+
+### 启动为什么快
+
+启动时最贵的是建索引：扫 jar、读类名，一遍就是几万个字符串。规矩是四条：
+
+1. **不挡启动**。索引在后台跑，主线程先往下走；跑完之前如果真崩了，结论先挂着，
+   索引一就绪立刻补算。
+2. **不重复跑**。模组目录的指纹没变就直接返回，不扫第二遍。
+3. **并行扫**。jar 之间互不相干，按 CPU 核数开 2~8 个线程并行读，结果按原顺序收回来。
+4. **不在日志线程上算**。分析请求只往自己的单线程队列里排，log4j 那条写日志的线程放下这一行就继续走。
+   这条是实机教出来的：原来分析直接挂在日志回调里，一行超长日志让某条正则回溯了几十秒，
+   整个游戏的日志写盘被堵住，客户端看着就跟卡死一样。现在一批日志最多看每行前 4096 个字符，
+   整套规则在同一行上最多花 2 秒，超了就跳过。
 
 ## 定位原理
 
@@ -906,7 +990,7 @@ Fabric 模组永远不出现在报告里。现在只排除加载器内部实现�
 类名可能经过重映射——免得看到一堆 `net.fabricmc` 以为是异常。
 
 ```bash
-$ java -jar oba-1.0.1.jar mods --game-dir "D:\MC\.minecraft"
+$ java -jar oba-mc1.21.1-1.1.0.jar mods --game-dir "D:\MC\.minecraft"
 OBA 模组清单 — 6 个文件，26 个类
 检测到 Sinytra Connector，报告里的 Fabric 模组会以各自的 jar 出现。……
 
@@ -923,8 +1007,11 @@ connectormod-2.0.0.jar      connectormod     2.0.0  3
 
 ## 规则库
 
-25 条针对真实日志文本的规则，另加 3 条 Connector 专用规则与 1 条人为触发规则，
-命中后直接给建议。
+34 条针对真实日志文本的规则，另加 3 条 Connector 专用规则与 1 条人为触发规则，
+命中后直接给建议。1.1.0 新加的九条里，六条专管存档与地图（实体 tick 崩溃、
+方块实体 tick 崩溃、区块生成失败、DataVersion 不匹配、实体数据损坏、世界加载被中止），
+两条专管「服务端装了只在客户端存在的类」，一条管**加载器直接拒收某个 jar** ——
+一个坏包的描述文件能让整个 mods 目录都不被加载，表现是「装了模组但一个都没生效」。
 
 | 类别 | 规则 |
 |---|---|
@@ -934,6 +1021,9 @@ connectormod-2.0.0.jar      connectormod     2.0.0  3
 | 类加载 | `NoClassDefFoundError`、`ClassNotFoundException`、`NoSuchMethodError`、`NoSuchFieldError` |
 | 注册表 | 缺少注册条目、注册冲突 |
 | 数据 / 资源包 | 数据包加载失败、资源包加载失败 |
+| 存档 / 地图 | 实体 tick 崩溃、方块实体 tick 崩溃、区块生成失败、DataVersion 不匹配、实体数据损坏、世界加载被中止 |
+| 客户端 / 服务端 | 服务端引用客户端专用类、缺客户端专用类、硬引用界面类 |
+| 加载器 / 描述文件 | 描述文件被拒收、`[[dependencies]]` 缺 `mandatory`、整个 mods 目录不加载 |
 | 文件完整性 | 内嵌库缺失、jar 损坏 |
 | 运行时 | 内存不足、服务器卡死、图形驱动问题、模组加载 / 实例化失败 |
 | Connector | 变换失败、缺 Fabric 前置、intermediary 名称泄漏 |
@@ -955,7 +1045,7 @@ oba/
 ├── README.md                       本文档（简体中文）
 ├── README.en.md                    English README
 ├── LICENSE                         GPL-3.0 许可协议全文
-├── dist/                           四个版本的 jar 都收在这里（跑 tools/build-all.ps1 生成）
+├── dist/                           七个版本的 jar 都收在这里（跑 tools/build-all.ps1 生成）
 ├── docs/                           README 用的标题条
 ├── examples/                       故意做坏的样例目录：假模组、几种崩溃报告
 │
@@ -969,7 +1059,7 @@ oba/
 │   └── forge/                      Forge 的加载器实现（1.20.1）
 │
 ├── tools/                          构建、同步、测试、实机验证用的脚本
-│   ├── build-all.ps1                    构建全部四个版本并收集到 dist/
+│   ├── build-all.ps1                    构建全部七条轨道并收集到 dist/
 │   ├── sync-versions.ps1                把引擎同步进各版本目录
 │   ├── run-engine-tests.ps1             跑引擎自测与运行时验证台
 │   ├── run-version.ps1                  从实例目录启动客户端做实机验证
@@ -978,27 +1068,31 @@ oba/
 │
 └── versions/                       每个版本一个自包含目录，可以直接构建
     ├── 1.21.1-neoforge/
-    ├── 1.20.2-1.20.4-neoforge/
     ├── 1.20.5-1.20.6-neoforge/
-    └── 1.20.1-forge/
+    ├── 1.20.2-1.20.4-neoforge/
+    ├── 1.20.1-forge/
+    ├── 1.21.1-forge/
+    ├── 1.20.5-1.20.6-forge/
+    └── 1.20.2-1.20.4-forge/
 ```
 
 > 每个版本目录内部的文件清单，见该目录自己的 README。
 >
-> 这份树是**默认分支**上的样子：引擎一份、四个版本目录都在，方便一次建全部 jar。
+> 这份树是**默认分支**上的样子：引擎一份、七条版本轨道都在，方便一次建全部 jar。
 > 各版本另有独立分支，分支里就是那个版本自包含的工程（`src/main`、`build.gradle`、
 > README 齐全），只想要一个版本的话切过去更清爽 —— 见 [仓库与分支](#仓库与分支)。
 
 ## 构建
 
-一次构建全部四个版本，产物收在 `dist/`：
+一次构建全部七条轨道，产物收在 `dist/`：
 
 ```bash
 pwsh tools/build-all.ps1
-# -> dist/oba-mc1.21.1-1.0.1.jar
-#    dist/oba-mc1.20.2-1.20.4-1.0.1.jar
-#    dist/oba-mc1.20.5-1.20.6-1.0.1.jar
-#    dist/oba-mc1.20.1-forge-1.0.1.jar
+# -> dist/oba-mc1.21.1-1.1.0.jar
+#    dist/oba-mc1.20.5-1.20.6-1.1.0.jar
+#    dist/oba-mc1.20.2-1.20.4-1.1.0.jar
+#    dist/oba-mc1.20.1-forge-1.1.0.jar
+#    加上另外三条 Forge 轨道的 jar（本机没能出包，见下面说明）
 ```
 
 也可以只构建某一个版本 —— 每个版本目录都是自包含的：
@@ -1017,12 +1111,20 @@ cd versions/1.20.1-forge    && ./gradlew jar
 | 1.20.5 ~ 1.20.6（NeoForge） | **21** | |
 | 1.20.2 ~ 1.20.4（NeoForge） | **17** | |
 | 1.20.1（Forge） | **17** | 用 ForgeGradle，构建含 reobf 步骤 |
+| 1.21.1（Forge） | **21** | 用 ForgeGradle |
+| 1.20.5 ~ 1.20.6（Forge） | **21** | 用 ForgeGradle |
+| 1.20.2 ~ 1.20.4（Forge） | **17** | 用 ForgeGradle |
 
 首次构建需要联网（要下载并反编译对应版本的 Minecraft）。
 之后可以加 `--offline` 复用 Gradle 缓存。
 
-> 这个环境里 `maven.neoforged.net` 连不通，NeoForge 那两条 1.20 轨道靠
+> 这个环境里 `maven.neoforged.net` 连不通，NeoForge 的 1.20 轨道靠
 > `mirror.init.gradle` 把仓库请求改写到官方 CDN 镜像；`build-all.ps1` 会自动带上它。
+>
+> 三条 1.20.2 起的 Forge 轨道首次构建要下几 MB 的 userdev：这台机器上 Java 默认直连，
+> 只有 4 KB/s；在 `gradle.properties` 里配上系统代理（`systemProp.https.proxyHost` /
+> `proxyPort`）后 2.7 秒就下完了。三条轨道都已出包，构建时间 2m38s / 108s / 73s。
+> 仓库里那几行代理配置默认是注释掉的，需要时放开并改成本机端口就行。
 
 ### 用 IntelliJ IDEA 构建
 
@@ -1068,7 +1170,7 @@ cd versions/1.21.1-neoforge
 也可以直接用 jar：
 
 ```bash
-java -jar build/libs/oba-mc1.21.1-1.0.1.jar analyze --game-dir ../../examples
+java -jar build/libs/oba-mc1.21.1-1.1.0.jar analyze --game-dir ../../examples
 ```
 
 **不要**把 `dev.oba.mod.ObaMod` 当主类——那是模组入口，单独跑会因为找不到 FML 而报错。
@@ -1095,11 +1197,14 @@ java -jar build/libs/oba-mc1.21.1-1.0.1.jar analyze --game-dir ../../examples
 
 | 验证项 | 方式 | 结果 |
 |---|---|---|
-| 引擎逻辑 | `pwsh tools/run-engine-tests.ps1` | **171 / 171 断言通过** |
+| 引擎逻辑 | `pwsh tools/run-engine-tests.ps1` | **199 / 199 断言通过** |
 | 引擎逻辑覆盖 | 索引、异常归属、异常链、Mixin 失败、依赖缺失、重复模组、线程转储、MCreator 识别、三种报告渲染、目录形态模组、多语言、Connector 混装、NeoForge 真实帧格式、日志编码、F3+C、带空格路径、事故时间线、**图形模组谱系与冲突** | 通过 |
 | **运行时行为** | `engine/tools/RuntimeHarness.java`（真实 log4j2 + 真实 Mod 类） | **52 / 52 断言通过** |
 | 运行时覆盖 | 日志采集、异常链还原、自动结论输出、报告落盘、F3+C 崩溃报告补捡、双语渲染、线程转储、只读保证 | 通过 |
 | 单 jar 两种用法 | `java -jar ... version` / 模拟游戏环境 / `-Doba.mode=cli` | 三种路径都正确分派 |
+| **专用服务端** | 六台真服务端：Forge 1.20.1-47.4.28 / 1.20.2-48.1.0 / 1.20.6-50.2.14 / 1.21.1-52.1.20，NeoForge 21.1.262 / 20.2.93 | 都能加载、都能正常停服；控制台 `oba status` / `oba mods` / `oba report` 可用；装仅客户端模组时报告能点名 |
+| 服务端坏存档 | 把 1.20.1 服务端的 `world\region\r.0.0.mca` 截到 300 字节 | 认出「存档里的区块读不出来」并点名 `.mca`；同一句只差 index 的上百条合成一条结论，时间线折叠成一行 |
+| 服务端装仅客户端模组 | 自建探针模组，在 common 类里引用 `net.minecraft.client.gui.screens.Screen` （Forge 1.20.1 与 NeoForge 20.2.93 各验一次） | 进程退出时兜底写出一份报告，点名探针模组、可信度 高 (55%)，问题清单首条是「服务端装了仅客户端模组」。控制台上一个字都没有——崩在模组加载阶段，OBA 还没来得及说话，只剩 `crash-reports` 里的文件和退出钩子 |
 | **真客户端实机** | 1.21.1 + NeoForge 21.1.256，故意放一个构造阶段就抛异常的模组 | 正确定位到 `CrasherMod.java:13`，报告自动落盘 |
 | 真实整合包 | 236 个模组 / 52313 个类 / 1 GB | 1 秒扫完；查出重复安装的 coroutil，认出 5 个图形类模组所属的族 |
 | 真实 GBK 日志 | 61380 行的中文整合包日志 | 正常读出，1128 个栈帧归属出 69 个 |
@@ -1159,6 +1264,44 @@ java -Doba.lang=en -cp "build-rt:$COMPILE_CP" dev.oba.tools.RuntimeHarness
 | MCreator 误报 98 个 | 236 个模组的包里报了 98 个 | `*Model`、`ModItems` 这类普通 Java 命名被当成 MCreator 特征 |
 | 自己指控自己 + 卡死误报 | 退出世界存区块被当成卡死，元凶报的是 OBA 自己 | 看门狗把原版重活当卡死，线程选择又选中了自己的监听线程 |
 
+### 专用服务端实测（Forge 1.20.1 / 1.20.2 / 1.20.6 / 1.21.1，NeoForge 21.1.262 / 20.2.93）
+
+客户端跑过之后又拿六台真服务端跑了一遍，都是原样启动、`stop` 正常退出：
+
+| 场景 | 结果 |
+|---|---|
+| 空服务端 | 加载、索引、控制台命令、退出报告都正常 |
+| 装上 lithium / modernfix / ferritecore / Clumps（NeoForge 21.1.262） | 索引 5 个模组文件 / 1114 个类 / 364 个包 / 38 ms，无报错 |
+| 装上 8 个真实 Forge 模组（Forge 1.21.1-52.1.20） | 索引 11 个模组文件 / 3343 个类 / 611 个包 / 86 ms，14 秒进到 `Done` |
+| 装上 6 个真实 Forge 模组（Forge 1.20.2-48.1.0） | 索引 8 个模组文件 / 2013 个类 / 362 个包 / 64 ms，16 秒进到 `Done` |
+| 装上 6 个真实 Forge 模组（Forge 1.20.6-50.2.14） | 索引 9 个模组文件 / 2348 个类 / 368 个包 / 83 ms，14 秒进到 `Done`；balm 读配置的 `ClassCastException` 算回 balm（极高 99%） |
+| 装上 10 个真实 Forge 模组（Forge 1.20.4-49.2.13 客户端） | 索引 12 个模组文件 / 3095 个类 / 576 个包 / 107 ms，23 秒进主菜单；顺手把 balm 读配置时的 `ClassCastException` 算到 balm 自己（极高 99%） |
+| 装上 11 个真实 Forge 模组（Forge 1.20.6-50.2.14 客户端） | 索引 15 个模组文件 / 2702 个类 / 418 个包 / 92 ms，23.5 秒进主菜单；同样把 balm 的配置读取错误算回 balm（极高 99%） |
+| 装上 9 个真实 Forge 模组（Forge 1.21.1-52.1.20 客户端） | 索引 13 个模组文件 / 3633 个类 / 660 个包 / 115 ms，23.5 秒进主菜单 |
+| 区块文件被截断到 300 字节 | 命中「存档里的区块读不出来」，报告点名出问题的 `.mca`，时间线把重复的一百多条折成一行 |
+| 装一个真会摸 `net.minecraft.client.*` 的探针模组 | 进程退出时兜底写出的报告里点名探针模组，问题清单首条是「服务端装了仅客户端模组」（Forge 1.20.1 / 1.20.2 / 1.21.1 与 NeoForge 20.2.93 各验一台） |
+
+这一轮改掉的五个只在服务端才暴露的问题：
+
+- NeoForge 20.2.93 上，`bus.register` 一个方法签名是 `handle(Event)` 的监听器会被拒
+  （`Cannot register listeners for abstract class net.neoforged.bus.api.Event`），tick 钩子等于没挂上；
+  改成 `IEventBus.addListener(Class, Consumer)` 反射挂载后正常。顺带把「停止事件」从同一个 try 里拆出来，
+  tick 挂不上也不影响停服通知。
+- 坏存档时同一句 `Region file ... has an invalid sector at index: N` 会打上百条，
+  原来会变成几十条一模一样的结论、把时间线占满；现在按「抹掉数字后的形状」去重，
+  结论只留一条，时间线只留两条再加一行「重复了 N 次」。
+- 同一句 `Attempted to load class ... for invalid dist DEDICATED_SERVER` 在报告里会出两条结论
+  （一条原句、一条带着 `Exception message: ` 前缀）。现在比形状之前先剥掉句首的
+  `Caused by:` / `Exception message:` / `Suppressed:` 这些标签，只留一条。
+- 采集器把**每一条日志都当成错误**：`Level.isInRange(ERROR, ALL)` 在 log4j2 里的意思是
+  「从 ERROR 一直到 ALL」，而严重度的 int 值是反着排的，结果 INFO / DEBUG 全被算进错误。
+  1.20.6 服务端一次只有 112 行、一条 ERROR 都没有的启动，会话小结写的是「捕获到 2284 行错误」。
+  改成 `isMoreSpecificThan(ERROR)` 之后同一轮只数出 2 行——正好是 balm 的两条真实报错。
+- 同一条结论在服务端 25 秒里播了六遍：balm 读同一份配置时交替抛两个不同的
+  `ClassCastException`，播报键原来只记「最后一条结论」，两个键轮流把对方顶掉，抑制就失效了。
+  现在键里只留异常类型（冒号之前）+ 元凶文件 + 首个可定位栈帧，并且记住最近 16 条键，
+  同一轮只播一次，中间攒下的次数在下次真播时一起报。
+
 ### 另一台设备的反馈
 
 从另一台机器导出了崩溃信息包，又暴露三个问题：
@@ -1212,7 +1355,7 @@ pwsh tools/ui-shot.ps1 -VersionDir "D:\hmcl\.minecraft\versions\test" -World "�
 
 - 把堆栈帧精确归属到模组文件，给出类名 + 方法名 + 行号
 - 整理出崩溃前后的**事故时间线**，标出每个模组当时在做什么
-- 识别 25 类文本形态明确的报错，另加 Connector 与人为触发规则
+- 识别 34 类文本形态明确的报错，另加 Connector 与人为触发规则
 - 无异常时通过线程转储指出「卡住时谁在跑」
 - 识别 MCreator 生成特征并给出理由
 - 装了 Sinytra Connector 时，Fabric 模组照样能参与归属
@@ -1277,6 +1420,13 @@ pwsh tools/ui-shot.ps1 -VersionDir "D:\hmcl\.minecraft\versions\test" -World "�
 3. 游戏版本、NeoForge 版本、OBA 版本
 4. 如果是「OBA 自己报错」，附上日志里 `[OBA]` 开头的那几行
 
+
+---
+
+## 变更记录
+
+每一次发版改了什么、为什么改、哪些还没验，都记在 [`CHANGELOG.md`](CHANGELOG.md) 里。
+每条版本轨道自己还有一份更细的开发日志，在 `versions/<轨道名>/CHANGELOG.md`。
 
 ---
 

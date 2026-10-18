@@ -1,7 +1,7 @@
 """按每个版本目录的真实内容重写 README 里的「项目结构」一节（中英两份）。
 
-各版本目录现在是自包含的，结构和仓库根那份不一样：
-根 README 描述整个仓库（engine + 各版本），版本 README 只描述它自己那个目录。
+版本 README 只描述它自己那个目录：树也是从该目录真实存在的文件长出来的，
+不提仓库根、不提其他版本。
 """
 import pathlib
 
@@ -12,7 +12,9 @@ V = R / "versions"
 DESC = {
     "README.md": ("本文档（简体中文）", "Simplified Chinese README"),
     "README.en.md": ("English README", "This file (English)"),
-    "LICENSE": ("MIT 许可协议全文", "Full MIT license text"),
+    "CHANGELOG.md": ("这条轨道每一版改了什么、修了什么、还剩什么",
+                     "What each release on this track changed, fixed and left open"),
+    "LICENSE": ("GPL-3.0 许可协议全文", "Full GPL-3.0 license text"),
     "build.gradle": ("构建脚本", "Build script"),
     "settings.gradle": ("插件仓库与根项目名", "Plugin repositories and root project name"),
     "gradle.properties": ("版本号、模组元数据、兼容版本范围",
@@ -21,6 +23,9 @@ DESC = {
     "gradlew.bat": ("同上，Windows 用", "Same, for Windows"),
     "mirror.init.gradle": ("把失效的 maven 主机改写到官方 CDN 镜像",
                            "Rewrites the dead maven host to the official CDN mirror"),
+    "examples": ("故意做坏的样例：假模组、几种崩溃报告",
+                 "Deliberately broken samples: fake mods, several crash reports"),
+    "banner.svg": ("README 用的标题条", "Title banner used by the READMEs"),
 
     "Launcher.java": ("唯一入口：判断是游戏内还是命令行，然后分派",
                       "Single entry point: picks in-game or CLI, then dispatches"),
@@ -46,6 +51,10 @@ DESC = {
     "Timeline.java": ("事故时间线：事件抽取、时间戳与级别识别",
                       "Incident timeline: event extraction, timestamps, levels"),
     "McreatorDetector.java": ("MCreator 多信号识别", "Multi-signal MCreator detection"),
+    "Theme.java": ("终端与游戏内聊天栏的配色和排版",
+                   "Colours and layout for the terminal and the in-game chat"),
+    "ClientFont.java": ("在游戏内按真实字形宽度排版",
+                        "Lays text out by real glyph widths inside the game"),
     "GraphicsMods.java": ("图形类模组谱系：钠 / iris 各分支与冲突判定",
                           "Graphics families: Sodium/Iris forks and conflict detection"),
     "ProcessProbe.java": ("线程转储解析 + 活体 JVM 采集",
@@ -76,6 +85,10 @@ DESC = {
                             "Feeds the game language to the engine (client only)"),
     "ObaMod.java": ("模组入口：注册事件、启动索引与看门狗",
                     "Mod entry point: event registration, index, watchdog"),
+    "GameUi.java": ("游戏内界面：/oba 菜单、报告分页、聊天栏渲染",
+                    "In-game interface: the /oba menu, report paging, chat rendering"),
+    "UiShot.java": ("开发用：把界面渲染成图片，方便离线看排版",
+                    "Developer aid: renders the interface to an image for offline layout checks"),
     "NeoForgeEnv.java": ("NeoForge 的加载器适配实现", "NeoForge loader adapter"),
     "NeoForgeTickHook.java": ("NeoForge 的 tick 挂载（含跨小版本探测）",
                               "NeoForge tick hook, with cross-version probing"),
@@ -87,6 +100,9 @@ LOADER = {
     "1.21.1-neoforge": ("neoforge", "NeoForge"),
     "1.20.2-1.20.4-neoforge": ("neoforge", "NeoForge"),
     "1.20.5-1.20.6-neoforge": ("neoforge", "NeoForge"),
+    "1.21.1-forge": ("forge", "Forge"),
+    "1.20.2-1.20.4-forge": ("forge", "Forge"),
+    "1.20.5-1.20.6-forge": ("forge", "Forge"),
     "1.20.1-forge": ("forge", "Forge"),
 }
 
@@ -94,8 +110,10 @@ TOML = {
     "1.21.1-neoforge": ("neoforge.mods.toml", None),
     "1.20.2-1.20.4-neoforge": ("mods.toml", None),
     "1.20.5-1.20.6-neoforge": ("neoforge.mods.toml", None),
-    "1.20.1-forge": ("mods-1.20.1-forge.toml",
-                     "源文件叫这个名，打包时落成 mods.toml"),
+    "1.21.1-forge": ("mods-forge.toml", "占位符模板，构建时展开成 mods.toml"),
+    "1.20.2-1.20.4-forge": ("mods-forge.toml", "占位符模板，构建时展开成 mods.toml"),
+    "1.20.5-1.20.6-forge": ("mods-forge.toml", "占位符模板，构建时展开成 mods.toml"),
+    "1.20.1-forge": ("mods-forge.toml", "占位符模板，构建时展开成 mods.toml"),
 }
 
 L = {
@@ -108,9 +126,7 @@ L = {
         icon="模组图标（256×256，模组列表里显示的那张）",
         icon128="同上，小尺寸一份",
         docs="README 用的标题条",
-        intro="""本目录是**自包含的**：下面列的就是这个版本要编的全部源码，拷走单独构建也行。
-引擎源码的权威副本在仓库根的 `engine/`，这里的 `core/` 是
-`tools/sync-versions.ps1` 同步过来的副本 —— 改逻辑请改 `engine/`，然后重跑那个脚本。""",
+        intro="""本目录是**自包含的**：下面列的就是这个版本要编的全部源码和资源，拷出去单独构建也行。""",
         footer="> 游戏外的命令行用法：本目录的 jar 同时是可执行的，`java -jar build/libs/*.jar help`。",
         title="## 项目结构",
     ),
@@ -123,10 +139,7 @@ L = {
         icon="Mod icon (256x256, the one shown in the mod list)",
         icon128="Same icon, small size",
         docs="Title banner used by the READMEs",
-        intro="""This directory is **self-contained**: everything listed below is what this version
-compiles, and it can be copied out and built on its own. The authoritative copy of the engine
-lives in `engine/` at the repository root; the `core/` here is a copy synced by
-`tools/sync-versions.ps1` — edit the engine there, then re-run that script.""",
+        intro="""This directory is **self-contained**: everything below is what this build compiles, and it can be copied out and built on its own.""",
         footer="> The jar from this directory is also executable: `java -jar build/libs/*.jar help`.",
         title="## Project structure",
     ),
@@ -148,15 +161,21 @@ def tree_for(name, lang):
     toml, toml_note = TOML[name]
     out = [f"{name}/", "│"]
 
-    for f in ("README.md", "README.en.md", "build.gradle", "settings.gradle",
-              "gradle.properties", "gradlew", "gradlew.bat"):
+    for f in ("README.md", "README.en.md", "CHANGELOG.md", "LICENSE",
+              "build.gradle", "settings.gradle", "gradle.properties",
+              "gradlew", "gradlew.bat"):
         if (d0 / f).exists():
             out.append(f"├── {f:<33}{d(f, lang)}")
     if (d0 / "mirror.init.gradle").exists():
         out.append(f"├── {'mirror.init.gradle':<33}{d('mirror.init.gradle', lang)}")
+    if (d0 / "examples").is_dir():
+        out.append(f"├── {'examples/':<33}{d('examples', lang)}")
 
-    out += ["│", f"├── gradle/wrapper/                 {t['wrapper']}", "│",
-            "├── src/main/java/dev/oba/",
+    out += ["│", f"├── gradle/wrapper/                 {t['wrapper']}", "│"]
+    if (d0 / "docs" / "banner.svg").exists():
+        out += [f"├── docs/banner.svg                 {t['docs']}", "│"]
+
+    out += ["├── src/main/java/dev/oba/",
             f"│   ├── {'Launcher.java':<29}{d('Launcher.java', lang)}",
             "│   │",
             "│   ├── cli/",
@@ -194,7 +213,6 @@ def tree_for(name, lang):
     if toml_note:
         out.append(f"│           （{toml_note}）" if lang == "zh"
                    else f"│           (the source file has this name; it ships as mods.toml)")
-    out += ["│", f"└── docs/banner.svg               {t['docs']}"]
     return "\n".join(out)
 
 

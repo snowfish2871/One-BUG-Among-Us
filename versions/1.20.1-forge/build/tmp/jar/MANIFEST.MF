@@ -4,7 +4,7 @@ Specification-Title: oba
 Specification-Vendor: OBA contributors
 Specification-Version: 1
 Implementation-Title: oba-1.20.1-forge
-Implementation-Version: 1.0.1
+Implementation-Version: 1.1.0
 Implementation-Vendor: OBA contributors
-Implementation-Timestamp: 2026-10-15T23:26:05+0800
+Implementation-Timestamp: 2026-10-18T16:18:26+0800
 

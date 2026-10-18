@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -22,6 +23,9 @@ public final class Reports {
 
     // 时间线在纯文本报告里最多画这么多行
     private static final int TIMELINE_LINES = 40;
+
+    // 同一句话（抹掉数字后形状相同）最多列几条，多出来的合并计数
+    private static final int TIMELINE_REPEATS = 2;
 
     private static final DateTimeFormatter TIME =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
@@ -194,10 +198,19 @@ public final class Reports {
             List<Timeline.Entry> entries = r.timeline().reversed();
             int shown = 0;
             boolean elided = false;
+            // 同一句话连着打上百条时（坏存档的 region 警告就是），只留前两条，
+            // 剩下的合并成一行计数，否则时间线全长一个样，别的事一点都看不见
+            Map<String, Integer> shapes = new HashMap<>();
+            int merged = 0;
             for (Timeline.Entry e : entries) {
                 if (shown >= TIMELINE_LINES) {
                     elided = true;
                     break;
+                }
+                int seen = shapes.merge(Timeline.shapeOf(e.renderText()), 1, Integer::sum);
+                if (seen > TIMELINE_REPEATS) {
+                    merged++;
+                    continue;
                 }
                 sb.append("  ").append(a.dim(padLeft(e.time(), 12))).append(' ')
                   .append(a.brand(pad(e.modId(), 18))).append(' ')
@@ -207,6 +220,9 @@ public final class Reports {
                         ? a.bad(text) : a.value(text));
                 sb.append('\n');
                 shown++;
+            }
+            if (merged > 0) {
+                sb.append(a.dim("  " + Lang.get("timeline.repeated", merged))).append('\n');
             }
             if (elided) {
                 sb.append(a.dim("  " + Lang.get("timeline.more", entries.size() - shown))).append('\n');
@@ -552,14 +568,24 @@ public final class Reports {
         sb.append("|---|---|---|\n");
         List<Timeline.Entry> entries = r.timeline().reversed();
         int shown = 0;
+        Map<String, Integer> shapes = new HashMap<>();
+        int merged = 0;
         for (Timeline.Entry e : entries) {
             if (shown >= TIMELINE_MD_LINES) {
                 break;
+            }
+            int seen = shapes.merge(Timeline.shapeOf(e.renderText()), 1, Integer::sum);
+            if (seen > TIMELINE_REPEATS) {
+                merged++;
+                continue;
             }
             sb.append("| `").append(e.time()).append("` | ")
               .append(e.modId()).append(" | ")
               .append(mdEscape(e.renderText())).append(" |\n");
             shown++;
+        }
+        if (merged > 0) {
+            sb.append("\n").append(Lang.get("timeline.repeated", merged)).append("\n");
         }
         if (entries.size() > shown) {
             sb.append("\n").append(Lang.get("timeline.more", entries.size() - shown)).append("\n");

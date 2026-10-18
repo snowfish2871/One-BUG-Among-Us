@@ -165,6 +165,9 @@ public final class Lang {
         put("timeline.col.mod", "mod", "模组");
         put("timeline.col.event", "what happened", "发生了什么");
         put("timeline.more", "... and {0} earlier events", "…… 另有 {0} 条更早的事件");
+        put("timeline.repeated",
+                "... plus {0} repeats of the same line (only the first two are listed)",
+                "…… 另外还有 {0} 条一模一样的重复记录（只列了前两条）");
         put("timeline.readHint",
                 "Read from the top: the first line is what happened last, closest to the failure.",
                 "从上往下读：第一行就是最接近崩溃的那一刻。");
@@ -375,6 +378,66 @@ public final class Lang {
         put("rule.opengl.title", "Graphics driver / OpenGL problem", "图形驱动/OpenGL 问题");
         put("rule.opengl.advice", "Update the GPU driver, and check whether a mod touched the render pipeline.",
                 "更新显卡驱动，或检查是否有模组改动了渲染管线。");
+
+        // 存档/地图自己坏掉的一类，以及服务端装了仅客户端模组的一类。
+        // 这两类最容易把人引到错的方向：前者换遍模组也没用，后者看着像普通的依赖缺失
+        put("rule.world_entity.title", "An entity in the save is broken", "存档里的实体坏了");
+        put("rule.world_entity.advice",
+                "It crashes while ticking one entity, so the broken data sits in the save rather than in the mod reading it. "
+                        + "If the log gives the entity type and its position, delete that entity with a command or an NBT editor. "
+                        + "Dropping the mod that owns the entity also lets the world load again, at the price of its blocks turning into air.",
+                "崩在「某个实体 tick」这一步，坏的是存档里那条实体数据，不是读它的模组。"
+                        + "日志里要是给出了实体类型和坐标，用命令或 NBT 编辑器把这条实体删掉即可。"
+                        + "临时去掉拥有该实体的模组也能重新进世界，代价是它加进来的方块会变成空气。");
+        put("rule.world_block_entity.title", "A block entity in the save is broken", "存档里的方块实体坏了");
+        put("rule.world_block_entity.advice",
+                "Chests, machines, spawners and signs keep their contents in a block entity. One of them holds data this game "
+                        + "version cannot read, and the chunk will keep crashing until that block is replaced. Break it in creative "
+                        + "with the block entity removed, or edit the chunk with an external tool.",
+                "箱子、机器、刷怪笼、告示牌这些方块的内容都放在方块实体里。其中有一个存了当前版本读不懂的数据，"
+                        + "只要这个方块还在，它所在的区块就会一直崩。创造模式下把这个方块打掉（连同里面的数据），"
+                        + "或者用外部工具改这一块区块。");
+        put("rule.world_chunk.title", "A chunk in the save cannot be read", "存档里的区块读不出来");
+        put("rule.world_chunk.advice",
+                "One region file is damaged or was written by a different version. Restore that .mca file from a backup, "
+                        + "or delete it so the game regenerates the area (everything built there is lost).",
+                "某一个 region 文件坏了，或者是别的版本写的。从备份里把对应的 .mca 文件换回来，"
+                        + "或者删掉它让游戏重新生成那片地形（那里建过的东西会丢）。");
+        put("rule.world_dataversion.title", "The save comes from a newer game version", "存档来自更新的游戏版本");
+        put("rule.world_dataversion.advice",
+                "Minecraft cannot open a save written by a newer version. Use the version that wrote it, or start from a backup "
+                        + "made before the upgrade. Back-porting the save is not something a mod can do.",
+                "游戏打不开比自己新的版本写出来的存档。要么换回写它的那个版本，要么找升级之前的备份。"
+                        + "把存档降级不是模组能做到的事。");
+        put("rule.world_entity_data.title", "Saved entity or container data is malformed", "存档里的实体/容器数据不合法");
+        put("rule.world_entity_data.advice",
+                "The NBT of an entity, a container or an item stack does not match what this version expects. "
+                        + "It usually comes from a mod that was removed or downgraded; the log line right after the error names the entry.",
+                "实体、容器或物品堆的 NBT 和当前版本对不上。多数是某个模组被移除或降级过；"
+                        + "紧跟在报错后面的那行日志会点名具体是哪一条。");
+        put("rule.world_level_load.title", "The world refuses to load", "世界加载不起来");
+        put("rule.world_level_load.advice",
+                "The save references data packs or mods that are not installed, so the level cannot be built. "
+                        + "Open it once in safe mode (vanilla data packs only) to get in, then reinstall the missing mods before playing on.",
+                "存档引用了没装的数据包或模组，导致世界搭不起来。先用安全模式（只加载原版数据包）进一次，"
+                        + "再把缺的模组装回去，别就这么玩下去。");
+        put("rule.server_client_class.title", "A client-only mod is loaded on a server", "服务端装了仅客户端模组");
+        put("rule.server_client_class.advice",
+                "net.minecraft.client.* only exists in the client jar, so a dedicated server cannot load a mod that touches it. "
+                        + "Remove that mod from the server's mods folder (keep it on clients), or ask its author for a server-safe build. "
+                        + "The class named in the error belongs to the mod that must come out.",
+                "net.minecraft.client.* 这些类只在客户端 jar 里有，服务端碰到它们的模组一定起不来。"
+                        + "把这个模组从服务端的 mods 目录里拿掉（客户端继续留着），或者等作者发一个服务端能用的版本。"
+                        + "报错里点到的那个类属于哪个模组，就拿掉哪个。");
+        put("rule.loader_invalid_modfile.title", "The loader refused a mod file", "加载器拒收了一个模组文件");
+        put("rule.loader_invalid_modfile.advice",
+                "One bad jar makes the whole mods folder fail to load, so the game starts with no mods at all. "
+                        + "The jar named in the line is almost always built for a newer loader line than the one you run "
+                        + "(a 1.20.4 build on 1.20.2~1.20.3, for example: those still require the mandatory field in [[dependencies]]). "
+                        + "Take that single jar out, or swap it for a build matching your game version, and start again.",
+                "一个坏 jar 会让整个 mods 目录都不被加载，所以游戏起来时一个模组都没有。"
+                        + "日志里点名的那个 jar，基本都比你正在跑的加载器版本新（比如拿 1.20.4 编译的包装到 1.20.2~1.20.3 上——"
+                        + "这两个版本的 [[dependencies]] 还要求 mandatory 字段）。把它单独拿走，或者换成对应游戏版本的构建，再启动一次。");
 
         // 图形类模组专项规则。钠 / iris 这一系出问题的样子和普通模组不一样
         put("rule.shader_compile.title", "Shader failed to compile", "着色器编译失败");
@@ -780,6 +843,9 @@ public final class Lang {
                 "输入 /oba report 查看完整报告（只读，不会改动任何文件）");
         put("mod.capturedNoOwner", "Captured an error, but no frame belonged to a mod. Most relevant finding: {0} - {1}",
                 "捕获到错误，但没有栈帧能归属到某个模组。最相关的问题: {0} — {1}");
+        put("mod.sameVerdict",
+                "The same conclusion came up {0} more time(s) and was not repeated",
+                "同一条结论又出现了 {0} 次，不再重复刷屏");
         put("mod.analysisFailed", "Analysis failed: {0}", "分析失败: {0}");
         put("mod.tailingStarted", "Now following the log file: {0}", "已开始监听日志文件: {0}");
         put("mod.tailingFailed", "Could not follow the log file: {0}", "监听日志文件失败: {0}");

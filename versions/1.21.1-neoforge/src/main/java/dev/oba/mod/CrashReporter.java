@@ -4,6 +4,7 @@ package dev.oba.mod;
 
 import dev.oba.core.Diagnosis;
 import dev.oba.core.Lang;
+import dev.oba.core.LogAnalyzer;
 import dev.oba.core.Oba;
 import dev.oba.core.Reports;
 
@@ -27,6 +28,8 @@ public final class CrashReporter {
 
     private final Diagnostics diagnostics;
     private volatile String lastSignature = "";
+    // 上一次落盘的时间，用来兜住"两个结论来回交替"的情况
+    private volatile long lastWriteMillis;
     // 这次会话已经点出过元凶，之后的空结论不再覆盖它
     private volatile boolean namedCulpritOnce;
     // 点出元凶那一刻，崩溃报告目录里有几份文件
@@ -156,7 +159,14 @@ public final class CrashReporter {
         if (signature.isEmpty() || signature.equals(lastSignature)) {
             return null;
         }
+        // 两条不同的结论交替出现时（日志窗口里同时挂着两种错误），
+        // 指纹会来回变，只比 equals 挡不住，再加一个最小间隔
+        long now = System.currentTimeMillis();
+        if (now - lastWriteMillis < 3000L) {
+            return null;
+        }
         lastSignature = signature;
+        lastWriteMillis = now;
         return write(report, reason);
     }
 
@@ -168,14 +178,18 @@ public final class CrashReporter {
         return write(report, Lang.get("report.reason.shutdown"), true);
     }
 
-    // 用"元凶 + 异常"当指纹，同一类错误只写一次
+    // 用"元凶 + 异常类型"当指纹，同一类错误只写一次。
+    // 没点出元凶时按第一条已知问题的规则 id 认，而不是"问题条数"——
+    // 条数会随着日志窗口里又冒出无关报错而变化，同一个结论就会被写成好几份文件。
+    // 异常只取类型不取整句：同一份配置读坏时消息里的类名、模块名、版本号行行不同，
+    // 整句当指纹会让每次分析都算"新结论"，报告文件照样一份接一份
     private static String signatureOf(Diagnosis.Report report) {
         Diagnosis.Finding primary = report.primarySuspect();
         if (primary == null) {
-            return report.issues().isEmpty() ? "" : "issues:" + report.issues().size();
+            return report.issues().isEmpty() ? "" : "issues:" + report.issues().get(0).rule();
         }
         return primary.fileName() + "|"
-                + (primary.throwables().isEmpty() ? "?" : primary.throwables().get(0));
+                + (primary.throwables().isEmpty() ? "?" : LogAnalyzer.exceptionKind(primary.throwables().get(0)));
     }
 
     // 清理旧报告，按修改时间从新到旧保留 KEEP 份

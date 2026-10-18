@@ -12,9 +12,10 @@ package dev.oba.loader.neoforge;
 import dev.oba.core.Lang;
 import dev.oba.core.Oba;
 import dev.oba.loader.TickHook;
-import net.neoforged.bus.api.Event;
+import java.lang.reflect.Method;
+import java.util.function.Consumer;
+
 import net.neoforged.bus.api.IEventBus;
-import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 
@@ -67,54 +68,55 @@ public final class NeoForgeTickHook implements TickHook {
         onStopping.run();
     }
 
-    // 两套事件类在编译期不可能同时存在，所以只能走反射：
-    // 先按名字拿到类，再把监听器挂上去。
-    // 事件总线的类型参数在编译期会擦除成 Event，这样注册是安全的
+    // 两套事件类在编译期不可能同时存在，所以只能走反射：先按名字拿到类，再按类挂监听器。
+    //
+    // 这里不能用 bus.register(带 @SubscribeEvent 的匿名对象) 那一套：匿名类的
+    // handle(Event) 参数写的是 Event 本身，而事件总线不接受给抽象类注册监听器，
+    // 实机上会直接抛
+    //   IllegalArgumentException: Cannot register listeners for abstract class
+    //   net.neoforged.bus.api.Event
+    // 一个监听器都挂不上。addListener(Class, Consumer) 收的是具体事件类，没有这个问题。
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void register() {
-        try {
-            IEventBus bus = NeoForge.EVENT_BUS;
-            if (MODERN.equals(flavour)) {
-                Class<?> eventClass = Class.forName(MODERN);
-                Object handler = new Object() {
-                    @SubscribeEvent
-                    public void handle(Event event) {
-                        // 只认这一个事件类型，别的直接忽略
-                        if (eventClass.isInstance(event)) {
-                            onTick.run();
-                        }
-                    }
-                };
-                bus.register(handler);
-            } else if (LEGACY.equals(flavour)) {
-                // 老版一次 tick 会触发 START 和 END 两回，只认 END，
-                // 这样和新版一次 tick 触发一回的节奏对得上
-                Object handler = new Object() {
-                    @SubscribeEvent
-                    public void handle(Event event) {
-                        if (isTickEnd(event)) {
-                            onTick.run();
-                        }
-                    }
-                };
-                bus.register(handler);
-            }
+        IEventBus bus = NeoForge.EVENT_BUS;
 
-            // 服务器停止事件两边一样，直接挂
-            Object stopHandler = new Object() {
-                @SubscribeEvent
-                public void handle(ServerStoppingEvent event) {
-                    onStopping.run();
+        // 服务器停止事件两边是同一个具体类，直接挂，不跟 tick 绑在一起：
+        // 以前两个放在同一个 try 里，tick 一抛，停止通知也跟着没了
+        try {
+            bus.addListener((Consumer<ServerStoppingEvent>) event -> onStopping.run());
+        } catch (Throwable t) {
+            grumble(t);
+        }
+
+        if (flavour.isEmpty()) {
+            return;
+        }
+        try {
+            // 两套事件类里只有一套在运行时存在，按探测到的那个名字取 Class
+            Class<?> eventClass = Class.forName(flavour, false, NeoForgeTickHook.class.getClassLoader());
+            Method addListener = IEventBus.class.getMethod("addListener", Class.class, Consumer.class);
+            Consumer<Object> consumer = event -> {
+                if (MODERN.equals(flavour)) {
+                    // 新版一次 tick 只触发一回（Pre / Post 拆成了两个子类）
+                    onTick.run();
+                } else if (isTickEnd(event)) {
+                    // 老版一次 tick 会触发 START 和 END 两回，只认 END，
+                    // 这样和新版一次 tick 触发一回的节奏对得上
+                    onTick.run();
                 }
             };
-            bus.register(stopHandler);
+            addListener.invoke(bus, eventClass, consumer);
         } catch (Throwable t) {
             // 挂不上就退化成"没有 tick 感知"，看门狗还在，只是不测 tick 间隔
-            if (!grumbled) {
-                grumbled = true;
-                System.out.println(Oba.LOG_PREFIX + Lang.get("tick.adapterFailed", t));
-            }
+            grumble(t);
+        }
+    }
+
+    private static void grumble(Throwable t) {
+        if (!grumbled) {
+            grumbled = true;
+            System.out.println(Oba.LOG_PREFIX + Lang.get("tick.adapterFailed", t));
         }
     }
 

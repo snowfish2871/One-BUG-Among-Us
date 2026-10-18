@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+Main-Class: dev.oba.Launcher
+Specification-Title: oba
+Specification-Vendor: OBA contributors
+Specification-Version: 1
+Implementation-Title: oba-1.21.1-forge
+Implementation-Version: 1.1.0
+Implementation-Vendor: OBA contributors
+Implementation-Timestamp: 2026-10-18T16:19:14+0800
+

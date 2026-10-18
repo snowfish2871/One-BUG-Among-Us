@@ -14,8 +14,10 @@ import dev.oba.core.StackTraceParser;
 import dev.oba.core.Timeline;
 import dev.oba.core.GraphicsMods;
 import dev.oba.core.Theme;
+import dev.oba.mod.DiagnosticAppender;
 import dev.oba.mod.Diagnostics;
 import dev.oba.mod.GameUi;
+import org.apache.logging.log4j.Level;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -379,6 +381,164 @@ public final class SelfTest {
                 ir.issues().stream().anyMatch(i -> i.rule().equals("connector.intermediary")),
                 ir.issues().stream().map(Diagnosis.KnownIssue::rule).toList().toString());
 
+        // 存档/地图自己坏掉的那几类。真正坏的是存档里的数据，换模组没用，
+        // 所以结论必须落到"这是存档的问题"上。用户实机就报过这类崩
+        String[][] worldCases = {
+                {"java.lang.NullPointerException: Cannot invoke \"net.minecraft.world.entity.Entity.tick()\"",
+                        "Ticking entity", "world.ticking_entity"},
+                {"net.minecraft.ReportedException: Ticking block entity", "", "world.ticking_block_entity"},
+                {"Failed to load chunk at 12, -3", "", "world.chunk"},
+                // 1.20.1 专用服务端读到被截断的区块文件时，打的是下面这两条（实机日志原文）
+                {"[13:15:35] [IO-Worker-33/WARN] [minecraft/RegionFile]: "
+                        + "Region file .\\world\\region\\r.0.0.mca has truncated header: 300", "", "world.chunk"},
+                {"[13:15:35] [IO-Worker-33/WARN] [minecraft/RegionFile]: "
+                        + "Region file .\\world\\region\\r.0.0.mca has an invalid sector at index: 0; sector 164 is out of bounds",
+                        "", "world.chunk"},
+                {"Data version 3955 is newer than this version supports", "", "world.dataversion"},
+                {"Failed to load entity data for minecraft:zombie", "", "world.entity_data"},
+                {"Failed to load level data or datapacks, can't proceed with server load", "", "world.level_load"},
+        };
+        for (String[] wc : worldCases) {
+            String wlog = wc[1].isEmpty() ? wc[0] : wc[0] + "\n" + wc[1];
+            Diagnosis.Report wr = Analyzer.analyze(wlog, fo);
+            check("认得出存档类崩溃：" + wc[2],
+                    wr.issues().stream().anyMatch(i -> i.rule().equals(wc[2])),
+                    wr.issues().stream().map(Diagnosis.KnownIssue::rule).toList().toString());
+        }
+
+        // 坏存档时同一句警告会连着打上百条，时间线按"形状"合并，不然整份报告全长一个样
+        check("时间线能认出形状相同的重复行",
+                Timeline.shapeOf("Region file .\\world\\region\\r.0.0.mca has an invalid sector at index: 74")
+                        .equals(Timeline.shapeOf("Region file .\\world\\region\\r.0.0.mca has an invalid sector at index: 3")),
+                Timeline.shapeOf("index: 12 vs index: 7"));
+        check("形状不同的行不会被合并",
+                !Timeline.shapeOf("Failed to load chunk").equals(Timeline.shapeOf("Failed to save chunk")),
+                Timeline.shapeOf("Failed to load chunk"));
+        // 同一个异常常同时以原句和 "Exception message: <原句>" 两种形态落到日志里；
+        // 句首标签不摘掉，问题清单里就会出现两条一模一样的结论（1.21.1 服务端实测撞到过）
+        check("句首的 Caused by / Exception message 标签不影响形状",
+                Timeline.shapeOf("Exception message: java.lang.RuntimeException: boom")
+                        .equals(Timeline.shapeOf("Caused by: java.lang.RuntimeException: boom")),
+                Timeline.shapeOf("Exception message: java.lang.RuntimeException: boom"));
+
+        // 播报节流的键只留异常类型：同一份配置读坏时消息里的类名、模块名、版本号
+        // 每行都不同，拿整句当键会每次都算新结论（1.20.6 专用服务端实测播了六遍）
+        String cceA = "java.lang.ClassCastException: class net.blay09.mods.waystones.api.WaystoneOrigin"
+                + " cannot be cast to class java.lang.String (waystones@17.0.2 of loader 'TRANSFORMER')";
+        String cceB = "java.lang.ClassCastException: class net.blay09.mods.balm.config.ExampleConfigData$ExampleEnum"
+                + " cannot be cast to class java.lang.String (balm@10.3.6 of loader 'TRANSFORMER')";
+        check("播报键能认出同类异常的不同消息",
+                LogAnalyzer.exceptionKind(cceA).equals(LogAnalyzer.exceptionKind(cceB)),
+                LogAnalyzer.exceptionKind(cceA) + " vs " + LogAnalyzer.exceptionKind(cceB));
+        // log4j2 的严重度是反着用 int 值的：isInRange(ERROR, ALL) 会把 INFO 也算成错误。
+        // 专用服务端实测过这个写法：112 行、一条 ERROR 都没有的启动，它数出"2284 行错误"
+        check("只有 ERROR/FATAL 才算错误，INFO/WARN 不算",
+                !DiagnosticAppender.isErrorLevel(Level.INFO)
+                        && !DiagnosticAppender.isErrorLevel(Level.WARN)
+                        && DiagnosticAppender.isErrorLevel(Level.ERROR)
+                        && DiagnosticAppender.isErrorLevel(Level.FATAL),
+                "INFO=" + DiagnosticAppender.isErrorLevel(Level.INFO)
+                        + " WARN=" + DiagnosticAppender.isErrorLevel(Level.WARN));
+        check("只有 FATAL 才算致命",
+                !DiagnosticAppender.isFatalLevel(Level.ERROR)
+                        && DiagnosticAppender.isFatalLevel(Level.FATAL),
+                "ERROR=" + DiagnosticAppender.isFatalLevel(Level.ERROR));
+
+        check("播报键对不同类型的异常不会合并",
+                !LogAnalyzer.exceptionKind(cceA).equals(LogAnalyzer.exceptionKind("java.lang.NullPointerException: x")),
+                LogAnalyzer.exceptionKind(cceA));
+
+        // 坏存档时同一句警告只差 index，结论里不该因此多出几十条一样的条目
+        Diagnosis.Report sameShape = Analyzer.analyze(
+                "Region file .\\world\\region\\r.0.0.mca has an invalid sector at index: 3; sector 10 is out of bounds\n"
+                        + "Region file .\\world\\region\\r.0.0.mca has an invalid sector at index: 4; sector 11 is out of bounds",
+                fo);
+        long sameShapeChunk = sameShape.issues().stream()
+                .filter(i -> i.rule().equals("world.chunk")).count();
+        check("同一句只差数字的警告只出一条结论", sameShapeChunk == 1, "world.chunk 条数=" + sameShapeChunk);
+
+        // 服务端装了仅客户端模组：net.minecraft.client.* 只在客户端 jar 里，
+        // 这类报错得说成"服务端不该装它"，不能被笼统地当成依赖缺失
+        Diagnosis.Report sr = Analyzer.analyze(
+                "java.lang.NoClassDefFoundError: net/minecraft/client/gui/screens/Screen", fo);
+        check("认得出服务端装了仅客户端模组",
+                sr.issues().stream().anyMatch(i -> i.rule().equals("server.client_class")),
+                sr.issues().stream().map(Diagnosis.KnownIssue::rule).toList().toString());
+        check("这条不会被笼统说成依赖缺失",
+                sr.issues().stream().noneMatch(i -> i.rule().equals("class.noclassdef")),
+                sr.issues().stream().map(Diagnosis.KnownIssue::rule).toList().toString());
+
+        // Forge 1.20.1 的专用服务端拦住客户端类时用的是另一句话（实机日志原文）
+        Diagnosis.Report distCleaner = Analyzer.analyze(
+                "[13:44:17] [modloading-worker-0/ERROR] [ne.mi.fm.lo.RuntimeDistCleaner/DISTXFORM]: "
+                        + "Attempted to load class net/minecraft/client/gui/screens/Screen for invalid dist DEDICATED_SERVER",
+                fo);
+        check("Forge 服务端的 dist 拦截也能认出来",
+                distCleaner.issues().stream().anyMatch(i -> i.rule().equals("server.client_class")),
+                distCleaner.issues().stream().map(Diagnosis.KnownIssue::rule).toList().toString());
+
+        // 同一句 dist 拦截在日志里会出现两次：一次原句、一次带 "Exception message: " 前缀。
+        // 去重键按形状算之后，这两条必须合成一条结论
+        Diagnosis.Report distTwice = Analyzer.analyze(
+                "java.lang.RuntimeException: Attempted to load class net/minecraft/client/gui/screens/Screen"
+                        + " for invalid dist DEDICATED_SERVER\n"
+                        + "Exception message: java.lang.RuntimeException: Attempted to load class"
+                        + " net/minecraft/client/gui/screens/Screen for invalid dist DEDICATED_SERVER",
+                fo);
+        long distTwiceCount = distTwice.issues().stream()
+                .filter(i -> i.rule().equals("server.client_class")).count();
+        check("带 Exception message 前缀的同一句只出一条结论",
+                distTwiceCount == 1, "server.client_class 条数=" + distTwiceCount);
+
+        // 加载器拒收整个 mods 目录：一个坏 jar 就够让整包模组都不加载，
+        // 用户看到的是"模组装了但一个都没生效"。实机 1.20.3 上真踩到过
+        Diagnosis.Report badJar = Analyzer.analyze(
+                "[09:21:28] [main/ERROR] [net.neoforged.fml.loading.moddiscovery.ModDiscoverer/SCAN]: "
+                        + "Locator {mods folder locator at D:\\game\\mods} found an invalid mod file net.neoforged.fml.loading.moddiscovery.ModFileInfo@e044b4a\n"
+                        + "net.neoforged.fml.loading.moddiscovery.InvalidModFileException: "
+                        + "Missing required field mandatory in dependency (cloth-config-13.0.138-neoforge.jar)", fo);
+        check("认得出加载器拒收了模组文件",
+                badJar.issues().stream().anyMatch(i -> i.rule().equals("loader.invalid_mod_file")),
+                badJar.issues().stream().map(Diagnosis.KnownIssue::rule).toList().toString());
+        Diagnosis.Report badJar2 = Analyzer.analyze(
+                "net.neoforged.fml.loading.moddiscovery.InvalidModFileException: "
+                        + "Missing required field mandatory in dependency (trashcans-1.1.1-neoforge-mc1.20.4.jar)", fo);
+        check("同一行只出一条结论，且带上 jar 名",
+                badJar2.issues().stream().filter(i -> i.rule().equals("loader.invalid_mod_file")).count() == 1
+                        && badJar2.issues().stream().anyMatch(i -> i.detailArgs().stream()
+                                .map(String::valueOf).anyMatch(e -> e.contains("trashcans-1.1.1-neoforge-mc1.20.4.jar"))),
+                badJar2.issues().stream().map(Diagnosis.KnownIssue::detailArgs).toList().toString());
+
+        // 实测踩到的噪声：混入框架找可选集成类时会把库里的类当"找不到"打出来，
+        // 这类报错量很大（十几条），报成"依赖缺失"会让人以为整合包装漏了东西
+        Diagnosis.Report jb = Analyzer.analyze(
+                "[1710月2026 19:30:16.286] [main/WARN] [mixin/]: Error loading class: org/jetbrains/annotations/ApiStatus$Internal "
+                        + "(java.lang.ClassNotFoundException: org.jetbrains.annotations.ApiStatus$Internal)", fo);
+        check("库里的类缺失不报成依赖缺失",
+                jb.issues().stream().noneMatch(i -> i.rule().startsWith("class.")),
+                jb.issues().stream().map(Diagnosis.KnownIssue::rule).toList().toString());
+
+        // 实机上真踩到过：模组往 DEBUG 里打几十 KB 的 dump，正则在这种行上回溯爆炸，
+        // 分析线程占满一个核、日志写盘全停，客户端看着就像卡死。现在超长行先截断
+        StringBuilder huge = new StringBuilder(
+                "java.lang.ClassNotFoundException: com.example.mymod.Helper registry dump ");
+        for (int i = 0; i < 40000; i++) {
+            huge.append("minecraft:some_identifier_").append(i).append(',');
+        }
+        long t0 = System.nanoTime();
+        Diagnosis.Report big = Analyzer.analyze(huge.toString(), fo);
+        long costMs = (System.nanoTime() - t0) / 1_000_000L;
+        check("超长行不会拖死分析（" + costMs + " ms）", costMs < 3000, "耗时 " + costMs + " ms");
+        check("超长行里的错误照样认得出",
+                big.issues().stream().anyMatch(i -> i.rule().equals("class.classnotfound")),
+                big.issues().stream().map(Diagnosis.KnownIssue::rule).toList().toString());
+
+        Diagnosis.Report real = Analyzer.analyze(
+                "java.lang.ClassNotFoundException: com.example.mymod.Helper", fo);
+        check("模组自己的类缺失照报不误",
+                real.issues().stream().anyMatch(i -> i.rule().equals("class.classnotfound")),
+                real.issues().stream().map(Diagnosis.KnownIssue::rule).toList().toString());
+
         section("14. NeoForge 真实日志格式（实机跑出来的样子）");
 
         // NeoForge 会在栈帧尾巴加 ~[模块@版本/...] {re:classloading}，
@@ -700,6 +860,24 @@ public final class SelfTest {
                 scReport.issues().stream().map(Diagnosis.KnownIssue::rule).toList().toString());
         check("图形崩溃能归属到 iris 或钠", scReport.primarySuspect() != null, "无元凶");
 
+        // 采样器名字是着色器自己起的，不是模组 id。以前把它当 modId 查，
+        // 报告里就会出现"相关文件: Sampler2"这种误导性的一行
+        String samplerLog = "[12:00:02] [Render thread/ERROR] [net.minecraft.client.renderer.ShaderInstance/]: "
+                + "A shader sampler is missing - Shader rendertype_entity_translucent_emissive "
+                + "could not find sampler named Sampler2 in the specified shader program.";
+        Analyzer.Options samplerOpt = new Analyzer.Options();
+        samplerOpt.index = Analyzer.buildIndex(gfxSources);
+        samplerOpt.byModId = ModSource.indexByModId(gfxSources);
+        samplerOpt.subject = "sampler";
+        Diagnosis.Report samplerReport = Analyzer.analyze(samplerLog, samplerOpt);
+        Diagnosis.KnownIssue samplerIssue = samplerReport.issues().stream()
+                .filter(i -> i.rule().equals("graphics.sampler_missing")).findFirst().orElse(null);
+        check("采样器缺失有专门规则", samplerIssue != null, rules(samplerReport));
+        check("采样器名不会被当成模组名或文件名",
+                samplerIssue != null && samplerIssue.suspects().isEmpty()
+                        && samplerIssue.source() == null,
+                samplerIssue == null ? "无结论" : samplerIssue.suspects().toString());
+
         section("21. 加载器适配层：tick 事件版本判定");
 
         // NeoForge 在 1.20.5 前后把 tick 事件换过类，两套的全限定名完全不同：
@@ -848,7 +1026,7 @@ public final class SelfTest {
                 "拿到: " + run.getAction() + " " + run.getValue());
         net.minecraft.network.chat.ClickEvent open =
                 GameUi.clickEvent(net.minecraft.network.chat.ClickEvent.Action.OPEN_URL,
-                        "https://github.com/OneBUGAmongUs/oba");
+                        "https://github.com/snowfish2871/One-BUG-Among-Us");
         check("链接点一下打开网页",
                 open.getAction() == net.minecraft.network.chat.ClickEvent.Action.OPEN_URL
                         && open.getValue().startsWith("https://"),

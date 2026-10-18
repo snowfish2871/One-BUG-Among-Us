@@ -2,9 +2,11 @@
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
-**This mod is still in the early stages of development and is an unfinished work, so please don't apply it to your modpacks or save files. OBA contributors won't be responsible for any issues it causes!**
+**Disclaimer: Because this MOD has a very high priority, please do not apply it to your important or active servers or saves. OBA contributors will not take any responsibility for any issues caused! Using it means you agree to and accept the potential instability risks.**
 
 **Crash diagnostics for Minecraft 1.20.1 through 1.21.x**, on Forge and NeoForge alike.
+
+**His mission is to solve problems, and once the problems are solved, his task is complete, so there's no need to keep the mods folder anymore.**
 
 The game dies, the log is a few thousand lines of stack trace, and none of it says who did it.
 OBA boils that down to one sentence you can act on: **which jar, which class, which line, and
@@ -36,6 +38,7 @@ English | [简体中文](README.md)
 - [Incident timeline](#incident-timeline)
 - [Diagnostic reports](#diagnostic-reports)
 - [Using it](#using-it)
+- [How it works](#how-it-works)
 - [How attribution works](#how-attribution-works)
 - [MCreator detection](#mcreator-detection)
 - [Graphics mods](#graphics-mods)
@@ -46,6 +49,7 @@ English | [简体中文](README.md)
 - [Verification](#verification)
 - [Known limits](#known-limits)
 - [FAQ](#faq)
+- [Changelog](#changelog)
 - [Contributing](#contributing)
 - [Credits](#credits)
 - [License](#license)
@@ -106,22 +110,25 @@ version tracks**.
 - **The default branch** — the one you are reading — holds the overview, the authoritative copy
   of the shared engine in `engine/`, the loader adapters in `src/loader/`, the build and
   verification scripts in `tools/`, and the deliberately broken samples in `examples/`.
-  From here all four jars can be built in one go.
+  From here all seven jars can be built in one go.
 - **Every Minecraft version range gets its own branch**, carrying that version's `src/main`,
   `build.gradle` and README. Switch to it and you can build, run and edit just that version.
 
 | Branch | Minecraft | Loader |
 |---|---|---|
 | `1.21.1-neoforge` | 1.21 – 1.21.x | NeoForge 21.1+ |
+| `1.21.1-forge` | 1.21.1 | Forge 52 |
 | `1.20.5-1.20.6-neoforge` | 1.20.5 / 1.20.6 | NeoForge 20.5 / 20.6 |
+| `1.20.5-1.20.6-forge` | 1.20.5 / 1.20.6 | Forge 50 |
 | `1.20.2-1.20.4-neoforge` | 1.20.2 / 1.20.3 / 1.20.4 | NeoForge 20.2 / 20.3 / 20.4 |
+| `1.20.2-1.20.4-forge` | 1.20.2 / 1.20.3 / 1.20.4 | Forge 49 |
 | `1.20.1-forge` | 1.20.1 | Forge 47 |
 
 **To read the source for a particular version, switch to its branch:**
 
 ```bash
 # only care about one version: name the branch while cloning
-git clone -b 1.20.1-forge https://github.com/OneBUGAmongUs/oba.git
+git clone -b 1.20.1-forge https://github.com/snowfish2871/One-BUG-Among-Us.git
 
 # already cloned
 git switch 1.21.1-neoforge
@@ -146,15 +153,45 @@ make the versions hold each other back.
 
 | Track | Minecraft | Loader | Java | Built against | Status |
 |---|---|---|---|---|---|
-| **1.21.x** | 1.21 – 1.21.x | 21.1 or newer | 21 | `1.21.1` / `21.1.256` | verified on a live client |
-| **1.20.2 – 1.20.4** | 1.20.2 / 1.20.3 / 1.20.4 | the 20.2 / 20.3 / 20.4 lines | 17 | `1.20.2` / `20.2.93` | **verified on a live client** |
-| **1.20.5 – 1.20.6** | 1.20.5 / 1.20.6 | the 20.5 / 20.6 lines | 21 | `1.20.5` / `20.5.21-beta` | **verified on a live client** |
-| **1.20.1** | 1.20.1 | the **Forge** 47 line | 17 | `1.20.1` / `47.4.26` | **verified on a live client** |
+| **1.21.x** | 1.21 – 1.21.x | 21.1 or newer | 21 | `1.21.1` / `21.1.256` | verified in game on 1.1.0 |
+| **1.21.1** | 1.21.1 | the **Forge** 52 line | 21 | `1.21.1` / `52.1.20` | built, verified on client and server |
+| **1.20.5 – 1.20.6** | 1.20.5 / 1.20.6 | the 20.5 / 20.6 lines | 21 | `1.20.5` / `20.5.21-beta` | verified in game on 1.1.0 |
+| **1.20.5 – 1.20.6** | 1.20.6 | the **Forge** 50 line | 21 | `1.20.6` / `50.2.14` | built, verified on client and server |
+| **1.20.2 – 1.20.4** | 1.20.2 / 1.20.3 / 1.20.4 | the 20.2 / 20.3 / 20.4 lines | 17 | `1.20.2` / `20.2.93` | verified in game on 1.1.0 |
+| **1.20.2 – 1.20.4** | 1.20.2 / 1.20.3 / 1.20.4 | the **Forge** 49 line | 17 | `1.20.4` / `49.2.13` | built, verified on client and server |
+| **1.20.1** | 1.20.1 | the **Forge** 47 line | 17 | `1.20.1` / `47.4.26` | verified in game on 1.1.0 |
 
 > **1.20.1 runs on Forge, not NeoForge.** NeoForge had not split off yet — the loader was
 > still MinecraftForge with `net.minecraftforge.*` packages, an entirely different codebase
 > from today's `net.neoforged.*`. That is why 1.20.1 gets its own Forge track.
 > **1.20 is not supported at all**: it predates both.
+
+> "Verified in game on 1.1.0" above means a real mod pack, not just OBA on its own: seven
+> instances with 10 – 18 real mod jars each (picked from Modrinth by version, required
+> dependencies pulled in recursively) all reached the title screen, with the index landing at
+> 1802 – 4958 classes, 383 – 1150 packages and 68 – 186 ms. The loader's own jar and
+> Minecraft itself are not mods and stay out of the index: counting them inflated the numbers
+> to five digits and could point attribution at neoforge itself.
+
+> Two 1.20.3 quirks are worth writing down: a jar built for 1.20.4 makes the loader reject the
+> whole mods folder (20.2 – 20.3 still require the `mandatory` field in `[[dependencies]]`),
+> and this machine's USB sound card only gets past audio init with `ALSOFT_DRIVERS=null`.
+> Neither changes the verdict, but both look like "no mods loaded".
+
+> The three Forge tracks for 1.20.2 and up **all ship a jar in this release**, and two of
+> them have already run on a dedicated server. They were stuck for a long time, and the
+> cause turned out to have nothing to do with mirrors: this machine's browser goes through
+> the `127.0.0.1:7897` system proxy while Java connects directly — direct access to
+> `maven.minecraftforge.net` runs at about 4 KB/s, while the same userdev file downloaded
+> through the proxy in 2.7 s. After adding `systemProp.https.proxyHost` / `proxyPort` to
+> `gradle.properties`, the three tracks built in 2m38s, 108s and 73s.
+>
+> Two build-script bugs were fixed along the way: Forge dropped reobfuscation in 1.20.5, so
+> the `reobfJar` task no longer exists and the two later tracks now attach `finalizedBy`
+> only when the task is present; and 1.20.2 is the 48 line, so `loaderVersion` was relaxed
+> from `[49,)` to `[48,)`, while 1.21.1's Minecraft range was narrowed from `[1.21,1.22)`
+> to `[1.21.1,1.21.2)`. Note that Forge never shipped a 1.20.5 build (its metadata has zero
+> 1.20.5 versions), so `1.20.5-1.20.6-forge` really covers 1.20.6 only.
 
 ### The loader adapter layer
 
@@ -219,7 +256,7 @@ the source.
 |---|---|
 | 1.21.1 + NeoForge 21.1.256 | **verified on a real client** |
 | 1.20.2 + NeoForge 20.2.93 | **verified on a real client** |
-| The 1.20.5 - 1.20.6 track | **verified on a live client** |
+| The 1.20.5 - 1.20.6 track | verified in game on 1.1.0 |
 | 1.20.1 + Forge 47.4.26 | **verified on a real client** |
 | Other minors inside a track | expected to work on the "same API within a track" argument, not verified one by one |
 
@@ -230,7 +267,7 @@ numbers and it can be looked at.
 
 ### Verified in game
 
-All four tracks were run on a real client: a test mod that **deliberately throws in its
+Four of the seven tracks were run on a real client: a test mod that **deliberately throws in its
 constructor** was dropped into `mods`, the client was started, and the question was whether OBA
 would name the culprit on its own and write the report into `logs`.
 
@@ -308,7 +345,7 @@ moves an API again, add another runtime adapter shaped like the `TickHook` imple
 
 ### In game
 
-1. Put `oba-1.0.1.jar` into `.minecraft/mods/`
+1. Put `oba-mc1.21.1-1.1.0.jar` into `.minecraft/mods/`
 2. Start the game
 
 From then on **you do not type anything**. When something breaks, the verdict appears in the
@@ -327,19 +364,19 @@ Type `/oba report` only when you want the full report on screen.
 
 ```bash
 # find .minecraft, analyse the newest crash report, write the report into logs
-java -jar oba-1.0.1.jar analyze
+java -jar oba-mc1.21.1-1.1.0.jar analyze
 
 # point at a game directory (quoted or unquoted, paths with spaces are fine)
-java -jar oba-1.0.1.jar analyze --game-dir "D:\my games\.minecraft"
+java -jar oba-mc1.21.1-1.1.0.jar analyze --game-dir "D:\my games\.minecraft"
 
 # feed it one crash report
-java -jar oba-1.0.1.jar analyze crash-reports/crash-2026-10-09_18.03.20-client.txt
+java -jar oba-mc1.21.1-1.1.0.jar analyze crash-reports/crash-2026-10-09_18.03.20-client.txt
 
 # list mods, find duplicates, spot MCreator, mark Fabric mods
-java -jar oba-1.0.1.jar mods --game-dir "D:\MC\.minecraft"
+java -jar oba-mc1.21.1-1.1.0.jar mods --game-dir "D:\MC\.minecraft"
 
 # follow the log while you play
-java -jar oba-1.0.1.jar watch "D:\MC\.minecraft\logs\latest.log"
+java -jar oba-mc1.21.1-1.1.0.jar watch "D:\MC\.minecraft\logs\latest.log"
 ```
 
 ### Try the bundled examples
@@ -349,16 +386,16 @@ and a missing-dependency log.
 
 ```bash
 # a NeoForge mod blows up
-java -jar oba-1.0.1.jar analyze examples/crash-reports/crash-2026-10-09_18.03.20-client.txt
+java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-09_18.03.20-client.txt
 
 # a Fabric mod blows up under Connector
-java -jar oba-1.0.1.jar analyze examples/crash-reports/crash-2026-10-10_11.35.02-client.txt
+java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_11.35.02-client.txt
 
 # an F3+C debug crash
-java -jar oba-1.0.1.jar analyze examples/crash-reports/crash-2026-10-10_16.47.12-client.txt
+java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_16.47.12-client.txt
 
-java -jar oba-1.0.1.jar mods     --game-dir examples
-java -jar oba-1.0.1.jar mcreator --game-dir examples
+java -jar oba-mc1.21.1-1.1.0.jar mods     --game-dir examples
+java -jar oba-mc1.21.1-1.1.0.jar mcreator --game-dir examples
 ```
 
 Expected: the first names `awesome-machines-2.1.0.jar` at `MachineRegistry.java:143`; the
@@ -379,17 +416,17 @@ current item - and **menu entries are clickable in both.**
 Run it with no arguments:
 
 ```bash
-java -jar oba-1.0.1.jar
+java -jar oba-mc1.21.1-1.1.0.jar
 ```
 
 ```
 ╔════════════════════════════════════════════════════════════════╗
-║  ◈ One BUG Among Us CLI                             OBA v1.0.1 ║
+║  ◈ One BUG Among Us CLI                             OBA v1.1.0 ║
 ╚════════════════════════════════════════════════════════════════╝
 
   Workspace   D:\hmcl\.minecraft
   Status      ● Ready
-  Build       One BUG Among Us 1.0.1
+  Build       One BUG Among Us 1.1.0
 
   • Choose an action ──────────────────────────────────────────────
 
@@ -429,7 +466,7 @@ terminal". A non-empty `NO_COLOR`, `TERM=dumb`, or redirected output turns it of
 
 ```
 ╔════════════════════════════════════════════════════════════╗
-║  ◈ One BUG Among Us                              OBA v1.0.1 ║
+║  ◈ One BUG Among Us                              OBA v1.1.0 ║
 ╚════════════════════════════════════════════════════════════╝
 
   • Choose an action ──────────────────────────────────────
@@ -448,7 +485,7 @@ terminal". A non-empty `NO_COLOR`, `TERM=dumb`, or redirected output turns it of
     /oba analyze <file> diagnose one file
 
   Anything with a coloured marker can be clicked.
-  https://github.com/OneBUGAmongUs/oba
+  https://github.com/snowfish2871/One-BUG-Among-Us
 ```
 
 The first row (the highlighted bar) is the recommended action. It *is* item 1 and it is clickable
@@ -558,7 +595,7 @@ ones are deleted so the folder does not fill up.
 Every report states up front why it was written:
 
 ```
-OBA v1.0.1
+OBA v1.1.0
 Triggered by a captured error
 Report only. No file was modified, disabled or deleted.
 ════════════════════════════════════════════════════════════════════════
@@ -699,8 +736,8 @@ So a Chinese client gets Chinese verdicts and any other client gets English, wit
 configuration.
 
 ```bash
-java -jar oba-1.0.1.jar analyze --lang en --game-dir examples
-OBA_LANG=en java -jar oba-1.0.1.jar mods --game-dir examples
+java -jar oba-mc1.21.1-1.1.0.jar analyze --lang en --game-dir examples
+OBA_LANG=en java -jar oba-mc1.21.1-1.1.0.jar mods --game-dir examples
 ```
 
 All strings live in one table (`engine/main/java/dev/oba/core/Lang.java`) keyed in `namespace.key` form.
@@ -713,6 +750,77 @@ when rendered, so a cached report still renders correctly after a language chang
 > adding a column to every `put(...)`. The self test fails if any key is missing.
 
 ---
+
+## How it works
+
+In one line: line up three things -- what the game said, what the process was doing
+at the time, and which jar each class actually lives in -- then let rules and scoring
+pick the most likely culprit.
+
+### Where the three inputs meet
+
+- **The log.** On startup it finds `logs/latest.log`, follows it from the first line,
+  and also registers an in-process log callback. Lines from both paths go through the
+  same entry point and the same regex, which pulls out time, thread, level, logger and
+  message. After that, "is this an error" depends only on the normalised text -- not on
+  whether the message happened to come from `[Render thread/WARN]`.
+- **The process.** A daemon thread samples every thread's name, state and top frames
+  every 250 ms and keeps only the snapshots that changed. Freeze detection reads it,
+  and so does the incident timeline.
+- **The mods.** It walks `mods/`, reads each jar's metadata and class list, and builds a
+  class-to-jar index. The index is tied to a fingerprint of that directory (name, size and
+  mtime of every jar), so an unchanged directory means no rebuild.
+
+### From one error line to one finding
+
+1. **Normalise.** Strip timestamps, object addresses and thread ids, then use the rest as
+   the dedupe key. One line repeating a hundred times still counts once.
+2. **Match rules.** Try the regexes in order and rank hits by how specific the wording is:
+   `connector.intermediary` names a concrete loader and goes first, a vague
+   `class.noclassdef` goes later. Each log line yields at most one finding, otherwise a
+   single crash would show up seven times in the list.
+   A missing class in a library namespace is not reported: `org.jetbrains`, `kotlin`,
+   `com.google`, `org.slf4j` and friends are usually a mod treating an integration as an
+   optional soft dependency, and reporting them is pure noise. A mod's own package still
+   reports.
+3. **Blame.** Every stack frame is looked up in the index; a hit gives that jar a vote, and
+   frames higher up or more specific count for more. Classes that resolve to nothing are
+   listed separately so the missing family is obvious.
+4. **Score and merge.** Hits from the same rule against the same mod merge into one entry,
+   the votes add up, and the result is multiplied by corroborating signals (was this mod
+   already known bad, is it MCreator-generated, did it arrive through Connector).
+5. **Render.** Findings are handed to the renderer once they are final. The terminal lays
+   them out in character columns; in game they are re-flowed to the chat HUD's pixel width.
+   Same data, two layouts.
+
+### Why it works across versions
+
+The diagnostics live in `engine/` and touch no loader API at all: they read log text,
+thread dumps, jar files and stack strings. Only a thin layer is version-bound -- the loader
+entry point (`@Mod`, event bus, tick callback), the crash hook and the "am I the client"
+check, and the client-only font metrics and chat width.
+
+Move to another major version and only that layer changes; the engine stays as it is.
+`tools/sync-versions.ps1` copies `engine/` verbatim into every track, so "change once,
+apply to seven tracks" has exactly one right way to happen.
+
+### Why startup is fast
+
+The expensive part of startup is the index: open jars, read class names, tens of thousands
+of strings per pass. Four rules keep it off the critical path:
+
+1. **Never block startup.** The index runs in the background and the main thread keeps
+   going. If something crashes before it finishes, the finding waits and is computed the
+   moment the index is ready.
+2. **Never run twice.** An unchanged `mods/` fingerprint returns immediately.
+3. **Scan in parallel.** Jars are independent, so the scan runs on 2-8 threads picked from
+   the CPU count and the results are reassembled in the original order.
+4. **Never analyse on the log thread.** A finding is queued onto OBA's own single thread; the
+   log4j appender that handed over the line simply moves on. The game taught us this one: the
+   analysis used to run inside the log callback, and a single oversized line sent one regex
+   backtracking for tens of seconds, stalling every log write so the client looked frozen.
+   Each line is now matched on at most its first 4096 characters, and the whole rule set gets
+   at most 2 seconds per line before the rest is skipped.
 
 ## How attribution works
 
@@ -949,8 +1057,12 @@ does not look like a fault.
 
 ## Rule set
 
-25 rules over real log text, plus 3 Connector-specific ones and 1 for deliberate crashes, each
-carrying concrete advice.
+34 rules over real log text, plus 3 Connector-specific ones and 1 for deliberate crashes, each
+carrying concrete advice. Nine are new in 1.1.0: six cover worlds and maps (entity tick crash,
+block entity tick crash, chunk generation failure, DataVersion mismatch, corrupt entity data,
+world load aborted), two cover client-only classes on a server, and one covers the loader
+refusing a jar outright — a single bad descriptor keeps the whole mods folder from loading,
+which looks exactly like "mods installed, none active".
 
 | Category | Rules |
 |---|---|
@@ -960,6 +1072,9 @@ carrying concrete advice.
 | Class loading | `NoClassDefFoundError`, `ClassNotFoundException`, `NoSuchMethodError`, `NoSuchFieldError` |
 | Registries | missing registry entries, registry conflict |
 | Data and resource packs | data pack failed to load, resource pack failed to load |
+| Worlds and maps | entity tick crash, block entity tick crash, chunk generation failure, DataVersion mismatch, corrupt entity data, world load aborted |
+| Client and server | client-only class on a server, missing client-only class, hard reference to GUI classes |
+| Loader / descriptors | descriptor refused, `mandatory` missing from `[[dependencies]]`, whole mods folder not loading |
 | File integrity | bundled library missing, corrupt jar |
 | Runtime | out of memory, server frozen, graphics driver problem, mod failed to load or construct |
 | Connector | transform failure, missing Fabric prerequisite, intermediary names leaked |
@@ -983,7 +1098,7 @@ oba/
 ├── README.md                       Simplified Chinese README
 ├── README.en.md                    This file (English)
 ├── LICENSE                         Full GPL-3.0 license text
-├── dist/                           All four version jars land here (produced by tools/build-all.ps1)
+├── dist/                           All seven version jars land here (produced by tools/build-all.ps1)
 ├── docs/                           Title banner used by the READMEs
 ├── examples/                       Deliberately broken samples: fake mods, several crash reports
 │
@@ -997,7 +1112,7 @@ oba/
 │   └── forge/                      Forge loader implementation (1.20.1)
 │
 ├── tools/                          Scripts for building, syncing, testing and real-client verification
-│   ├── build-all.ps1                    Builds all four versions into dist/
+│   ├── build-all.ps1                    Builds all seven tracks into dist/
 │   ├── sync-versions.ps1                Syncs the engine into each version
 │   ├── run-engine-tests.ps1             Runs the engine self test and harness
 │   ├── run-version.ps1                  Launches a client for real-client checks
@@ -1006,28 +1121,32 @@ oba/
 │
 └── versions/                       One self-contained, directly buildable directory per version
     ├── 1.21.1-neoforge/
-    ├── 1.20.2-1.20.4-neoforge/
     ├── 1.20.5-1.20.6-neoforge/
-    └── 1.20.1-forge/
+    ├── 1.20.2-1.20.4-neoforge/
+    ├── 1.20.1-forge/
+    ├── 1.21.1-forge/
+    ├── 1.20.5-1.20.6-forge/
+    └── 1.20.2-1.20.4-forge/
 ```
 
 > For the file listing inside each version directory, see that directory's own README.
 >
-> This tree is what the **default branch** looks like: one engine, all four version directories
+> This tree is what the **default branch** looks like: one engine, all seven version directories
 > present, so every jar can be built in one pass. Each version also has its own branch holding
 > just that version's self-contained project (`src/main`, `build.gradle`, README) — see
 > [Branches](#branches).
 
 ## Building
 
-Build all four versions at once; the jars land in `dist/`:
+Build all seven tracks at once; the jars land in `dist/`:
 
 ```bash
 pwsh tools/build-all.ps1
-# -> dist/oba-mc1.21.1-1.0.1.jar
-#    dist/oba-mc1.20.2-1.20.4-1.0.1.jar
-#    dist/oba-mc1.20.5-1.20.6-1.0.1.jar
-#    dist/oba-mc1.20.1-forge-1.0.1.jar
+# -> dist/oba-mc1.21.1-1.1.0.jar
+#    dist/oba-mc1.20.5-1.20.6-1.1.0.jar
+#    dist/oba-mc1.20.2-1.20.4-1.1.0.jar
+#    dist/oba-mc1.20.1-forge-1.1.0.jar
+#    plus the other three Forge tracks (not built here; see the note below)
 ```
 
 Or build just one — every version directory is self-contained:
@@ -1046,17 +1165,26 @@ version and its root is the Gradle project, so `./gradlew jar` right there is al
 | 1.20.5 - 1.20.6 (NeoForge) | **21** | |
 | 1.20.2 - 1.20.4 (NeoForge) | **17** | |
 | 1.20.1 (Forge) | **17** | uses ForgeGradle, the build includes a reobf step |
+| 1.21.1 (Forge) | **21** | uses ForgeGradle |
+| 1.20.5 - 1.20.6 (Forge) | **21** | uses ForgeGradle |
+| 1.20.2 - 1.20.4 (Forge) | **17** | uses ForgeGradle |
 
 The first build needs network access (it downloads and decompiles that Minecraft version).
 After that you can pass `--offline` to reuse the Gradle cache.
 
-> On this machine `maven.neoforged.net` is unreachable; the two NeoForge 1.20 tracks work around
+> On this machine `maven.neoforged.net` is unreachable; the NeoForge 1.20 tracks work around
 > that with `mirror.init.gradle`, which rewrites repository URLs to the official CDN mirror.
 > `build-all.ps1` passes it automatically.
+>
+> The three Forge tracks from 1.20.2 up need a few MB of userdev on their first build. On this
+> machine Java connects directly at about 4 KB/s; with the system proxy configured in
+> `gradle.properties` (`systemProp.https.proxyHost` / `proxyPort`) the same download takes
+> 2.7 s. All three tracks now build, in 2m38s / 108s / 73s. Those lines ship commented out in
+> the repo; uncomment and point them at your own proxy if a direct build stalls.
 
 ```bash
 ./gradlew build
-# -> build/libs/oba-1.0.1.jar
+# -> build/libs/oba-mc1.21.1-1.1.0.jar
 
 ./gradlew dist             # build and print the jar path
 ./gradlew runClient        # launch a dev client
@@ -1111,7 +1239,7 @@ cd versions/1.21.1-neoforge
 Or use the jar directly:
 
 ```bash
-java -jar build/libs/oba-mc1.21.1-1.0.1.jar analyze --game-dir ../../examples
+java -jar build/libs/oba-mc1.21.1-1.1.0.jar analyze --game-dir ../../examples
 ```
 
 Do **not** use `dev.oba.mod.ObaMod` as the main class — that is the mod entry point and running
@@ -1138,11 +1266,14 @@ directories keep the old code.
 
 | What | How | Result |
 |---|---|---|
-| Engine logic | `pwsh tools/run-engine-tests.ps1` | **171 / 171 assertions pass** |
+| Engine logic | `pwsh tools/run-engine-tests.ps1` | **199 / 199 assertions pass** |
 | Engine coverage | indexing, attribution, cause chains, mixin failure, missing dependency, duplicate mods, thread dumps, MCreator detection, three report formats, exploded mods, languages, Connector mixed packs, real NeoForge frame format, log encodings, F3+C, paths with spaces, incident timeline, **graphics families and conflicts** | pass |
 | **Runtime behaviour** | `engine/tools/RuntimeHarness.java` (real log4j2 + real mod classes) | **52 / 52 assertions pass** |
 | Runtime coverage | log capture, cause chain fidelity, automatic verdict, report written into logs, F3+C crash-report pickup, bilingual rendering, thread dumps, read-only guarantee | pass |
 | One jar, two jobs | `java -jar ... version` / simulated game environment / `-Doba.mode=cli` | all three dispatch correctly |
+| **Dedicated servers** | six real servers: Forge 1.20.1-47.4.28 / 1.20.2-48.1.0 / 1.20.6-50.2.14 / 1.21.1-52.1.20, NeoForge 21.1.262 / 20.2.93 | all load and stop cleanly; `oba status` / `oba mods` / `oba report` work from the console; a client-only mod is named in the report |
+| Corrupt save on a server | truncated `world\region\r.0.0.mca` to 300 bytes | reported as "the chunks in this save cannot be read", naming the `.mca`; the hundred near-identical lines collapse into one finding and one timeline row |
+| Client-only mod on a server | a probe mod whose common class touches `net.minecraft.client.gui.screens.Screen` (checked on Forge 1.20.1 and NeoForge 20.2.93) | the report written on shutdown names the probe mod with confidence high (55%), first finding "a client-only mod is installed on a server". The console shows nothing: it dies during mod loading, before OBA gets to speak |
 | **Real client** | 1.21.1 + NeoForge 21.1.256, with a mod that throws during construction | **correctly names `CrasherMod.java:13`, report lands in `logs`** |
 | Real modpack | 236 mods / 52,313 classes / 1 GB | scanned in 1 second; found a genuinely duplicated coroutil and placed 5 graphics mods into their families |
 | Real GBK log | 61,380-line Chinese modpack log | read cleanly; 69 of 1,128 frames attributed |
@@ -1177,6 +1308,47 @@ java -Dstdout.encoding=UTF-8 -cp "build-rt:$COMPILE_CP" dev.oba.tools.RuntimeHar
 # 3) and again in the other language
 java -Doba.lang=en -cp "build-rt:$COMPILE_CP" dev.oba.tools.RuntimeHarness
 ```
+
+### Dedicated servers (Forge 1.20.1 / 1.20.2 / 1.20.6 / 1.21.1, NeoForge 21.1.262 / 20.2.93)
+
+After the clients, six real servers were run the same way — start as-is, `stop`, clean exit:
+
+| Case | Result |
+|---|---|
+| Empty server | loads, indexes, console commands and the shutdown report all work |
+| lithium / modernfix / ferritecore / Clumps installed (NeoForge 21.1.262) | indexes 5 mod files / 1114 classes / 364 packages in 38 ms, no errors |
+| eight real Forge mods installed (Forge 1.21.1-52.1.20) | indexes 11 mod files / 3343 classes / 611 packages in 86 ms, reaches `Done` in 14 s |
+| six real Forge mods installed (Forge 1.20.2-48.1.0) | indexes 8 mod files / 2013 classes / 362 packages in 64 ms, reaches `Done` in 16 s |
+| six real Forge mods installed (Forge 1.20.6-50.2.14) | indexes 9 mod files / 2348 classes / 368 packages in 83 ms, reaches `Done` in 14 s; balm's config `ClassCastException` is pinned on balm (99%) |
+| ten real Forge mods installed (Forge 1.20.4-49.2.13 client) | indexes 12 mod files / 3095 classes / 576 packages in 107 ms, main menu in 23 s; also pinned balm's `ClassCastException` while reading its config on balm itself (99%) |
+| eleven real Forge mods installed (Forge 1.20.6-50.2.14 client) | indexes 15 mod files / 2702 classes / 418 packages in 92 ms, main menu in 23.5 s; same balm config error, again pinned on balm (99%) |
+| nine real Forge mods installed (Forge 1.21.1-52.1.20 client) | indexes 13 mod files / 3633 classes / 660 packages in 115 ms, main menu in 23.5 s |
+| Region file truncated to 300 bytes | reported as unreadable chunks, naming the `.mca`; the 100+ repeated lines fold into one timeline row |
+| A probe mod that really touches `net.minecraft.client.*` | the report written on shutdown names the probe mod, first finding is "a client-only mod is installed on a server" (Forge 1.20.1 / 1.20.2 / 1.21.1 and NeoForge 20.2.93) |
+
+Five problems that only show up on a server were fixed this round:
+
+- On NeoForge 20.2.93, `bus.register` rejected a listener whose method is `handle(Event)`
+  (`Cannot register listeners for abstract class net.neoforged.bus.api.Event`), so the tick hook
+  was never attached; it now goes through `IEventBus.addListener(Class, Consumer)` by reflection.
+  The stop listener also moved out of the same `try`, so a failed tick hook no longer takes the
+  shutdown notice with it.
+- A corrupt save prints `Region file ... has an invalid sector at index: N` a hundred times; that
+  used to become dozens of identical findings and flooded the timeline. Findings are now deduped by
+  the "shape" of the line (digits stripped): one finding, two timeline rows plus a "repeated N times"
+  line.
+- The same `Attempted to load class ... for invalid dist DEDICATED_SERVER` line produced two findings
+  (the bare one and a copy prefixed with `Exception message: `). Shapes are now compared after
+  stripping leading `Caused by:` / `Exception message:` / `Suppressed:` labels, so it stays one.
+- The capture appender treated **every log line as an error**. `Level.isInRange(ERROR, ALL)` means
+  "from ERROR all the way to ALL", and log4j2 stores severity upside down, so INFO and DEBUG counted
+  as errors. A 112-line, error-free startup of the 1.20.6 server reported "2284 error lines captured".
+  With `isMoreSpecificThan(ERROR)` the same run counts 2 — exactly balm's two real errors.
+- One conclusion was announced six times in 25 seconds on the server: balm throws two different
+  `ClassCastException`s while reading the same config, and the announce key only remembered the last
+  verdict, so the two keys kept evicting each other. The key now keeps only the exception type
+  (before the colon), the blamed file and the first located frame, and the throttle remembers the
+  last 16 keys: one announcement per conclusion, with the suppressed count reported next time.
 
 ### What this verification has caught
 
@@ -1260,7 +1432,7 @@ a live client.
 
 - attribute stack frames to a mod file with class, method and line
 - build an **incident timeline** showing what each mod was doing around the failure
-- recognise 25 unambiguous error patterns, plus Connector and deliberate-crash rules
+- recognise 34 unambiguous error patterns, plus Connector and deliberate-crash rules
 - name who was executing when the game froze, without an exception
 - detect MCreator generation traits and show its reasons
 - keep Fabric mods attributable when Sinytra Connector is present
@@ -1331,6 +1503,14 @@ Issues and pull requests are welcome. To make a bug report easy to act on, pleas
 3. game version, NeoForge version, OBA version
 4. if OBA itself is erroring, the lines starting with `[OBA]`
 
+
+---
+
+## Changelog
+
+What changed in each release, why, and what is still unverified lives in
+[`CHANGELOG.md`](CHANGELOG.md). Each version track also keeps a more detailed
+development log at `versions/<track>/CHANGELOG.md`.
 
 ---
 

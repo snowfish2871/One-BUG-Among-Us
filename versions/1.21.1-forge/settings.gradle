@@ -1,0 +1,9 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        // ForgeGradle 只在 Forge 自己的 maven 上
+        maven { url = 'https://maven.minecraftforge.net' }
+    }
+}
+
+rootProject.name = 'oba-1.21.1-forge'

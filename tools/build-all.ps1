@@ -1,4 +1,4 @@
-# 构建全部四个版本的 jar，并把产物收集到 dist/。
+# 构建全部七个版本的 jar，并把产物收集到 dist/。
 #
 # 用法：pwsh tools/build-all.ps1
 $ErrorActionPreference = 'Stop'
@@ -11,6 +11,9 @@ $tracks = @(
     @{ name = '1.21.1-neoforge';        java = 'zulu-21'; mirror = $false; offline = $false },
     @{ name = '1.20.2-1.20.4-neoforge'; java = 'zulu-17'; mirror = $true;  offline = $false },
     @{ name = '1.20.5-1.20.6-neoforge'; java = 'zulu-21'; mirror = $true;  offline = $false },
+    @{ name = '1.21.1-forge';           java = 'zulu-21'; mirror = $false; offline = $false },
+    @{ name = '1.20.2-1.20.4-forge';    java = 'zulu-17'; mirror = $false; offline = $false },
+    @{ name = '1.20.5-1.20.6-forge';    java = 'zulu-21'; mirror = $false; offline = $false },
     @{ name = '1.20.1-forge';           java = 'zulu-17'; mirror = $false; offline = $false }
 )
 
