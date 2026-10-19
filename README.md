@@ -2,9 +2,9 @@
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
-**声明：由于该MOD极高的优先级，请不要将其应用于您重要的或者正在运营的服务器或者存档，造成的任何问题OBA contributors不会承担！使用则代表您同意并接受可能的潜在的不稳定风险。**
+**该MOD正在处于初期构建状态尚属未完成作品，请不要将其应用于您的整合包或者存档，造成的任何问题OBA contributors不会承担！**
 
-**面向 Minecraft 1.21 ~ 1.21.x 的模组崩溃诊断工具**（NeoForge）
+**面向 Minecraft 26.2 的模组崩溃诊断工具**（NeoForge）
 
 游戏崩了，日志里几千行堆栈看不出是谁干的。OBA 把这件事收敛成一句能照着做的结论：
 **哪个 jar、哪个类的哪一行、以及为什么怀疑它。**
@@ -15,7 +15,7 @@
 > 不会禁用、移动、重命名或删除任何一个模组。所有结论只是打印出来并写成报告，
 > 是否采取行动由你决定。
 
-> **这是 1.21.1（NeoForge） 这条轨道自己的 README**：只讲这条轨道的 Minecraft 版本、加载器适配、
+> **这是 26.2（NeoForge） 这条轨道自己的 README**：只讲这条轨道的 Minecraft 版本、加载器适配、
 > 构建方式和验证结果。仓库总览、分支列表和版本兼容表在根 README。
 
 <img src="src/main/resources/oba-icon.png" alt="图标" width="128" align="right">
@@ -26,15 +26,15 @@
 
 | 项目 | 值 |
 |---|---|
-| Minecraft | 1.21 ~ 1.21.x |
-| 加载器 | **NeoForge** 21.1 线 |
-| Java | 21 |
-| 编译目标 | 1.21.1 / 21.1.256 |
+| Minecraft | 26.2 |
+| 加载器 | **NeoForge** 26.2 线，构建时对 26.2.0.93 |
+| Java | 25 |
+| 编译目标 | 26.2 / 26.2.0.93 |
 | 描述文件 | `META-INF/neoforge.mods.toml` |
-| 产物 | `oba-mc1.21.1-1.1.0.jar` |
+| 产物 | `oba-mc26.2-1.1.0.jar` |
 | 状态 | 已出包，已实机验证 |
 
-覆盖 1.21.1 和 21.x 的 NeoForge。NeoForge 从 1.20.5 起重做过 tick 事件，tick 钩子改成走 `IEventBus.addListener(Class, Consumer)` 反射挂载，实机已经能挂上；1.21.2 以后还没进游戏试过。
+Minecraft 从 26.x 起换了版本号写法，26.2 要 Java 25。这条轨道只对 26.2，26.1 和 26.3 没有单独出包。
 
 ### 这一条轨道的加载器适配
 
@@ -47,19 +47,20 @@
 | `TickHook` | 挂服务器 tick |
 | `Loader` | 存放当前轨道装进来的实现 |
 
-`src/main/java/dev/oba/loader/neoforge/`：`NeoForgeEnv` 读模组列表和游戏目录，`NeoForgeTickHook` 挂服务器 tick。
+`src/main/java/dev/oba/loader/neoforge/`：`NeoForgeEnv` 读模组列表和游戏目录，`NeoForgeTickHook` 挂服务器 tick。26.2 上这两样都不用改。
 
-NeoForge 在 1.20.5 前后重做过 tick 事件，`NeoForgeTickHook` 用 `Class.forName` 探两套类：`net.neoforged.neoforge.event.tick.ServerTickEvent$Post` 和老的 `net.neoforged.neoforge.event.TickEvent$ServerTickEvent`。两套类名都能探到（实机 21.1.262 上走的是新类名），挂载不经过 `bus.register`，避免给抽象类 `Event` 注册监听器。
+26.2 的服务器 tick 仍是 `net.neoforged.neoforge.event.tick.ServerTickEvent$Post`，`NeoForgeTickHook` 用 `IEventBus.addListener(Class, Consumer)` 反射挂上；专用服务端实机没有出现「没能挂上 tick 事件」的告警。
 
 ### 这一条轨道的实机结果
 
-- 专用服务端 NeoForge 21.1.262 上跑通：能加载、能停服；装 lithium / modernfix / ferritecore / Clumps 四个真实模组后索引 5 个文件 / 1114 个类 / 364 个包 / 38 ms，退出时正常出报告。
-- 装一个 common 类里引用 `net.minecraft.client.gui.screens.Screen` 的探针模组：崩在模组加载阶段，退出时兜底写出的报告点名探针模组、可信度 高 (55%)，问题清单首条是「服务端装了仅客户端模组」。
-- 1.21.1 + NeoForge 21.1.256，16 个真实模组：`[OBA] enabled: 1.1.0`，索引 17 个模组文件 / 4899 个类 / 1150 个包 / 100 ms，进主菜单约 20 秒。
+- 客户端 26.2 + NeoForge 26.2.0.93（Java 25），装 lithium / ferritecore / Clumps / Jade / JEI 五个真实模组：`[OBA] 已启用：1.1.0`，17.5 秒进主菜单，索引 7 个模组文件 / 5401 个类 / 523 个包（68 ms）。日志里只有三条拿不到账号的联网错误，OBA 没有误报。
+- 同版本的专用服务端装同样五个模组：进到 `Done`（日志里的 `Done (0.320s)` 只是世界加载本身），索引 7 个模组文件 / 5401 个类 / 523 个包（44~49 ms，两次启动），停服正常，会话小结「本次会话未捕获到错误」。
 
 ### 这一条轨道还没解决的问题
 
-- 1.21.2 及以后的 NeoForge 没有实机验证过。
+- 26.1 / 26.3 没有单独出包，也没进过游戏。
+- NeoForge 26.2 在 Windows 上会自己抛一串 `AppenderLoggingException`（`io.netty.channel.kqueue.Native` / `epoll.Native` 只有 OSX、Linux 才有），服务端照常跑完；OBA 没有把这串算成崩溃，也没有据此写报告。
+- 这条轨道的 jar 是本机用 `javac` 直编的，不是 Gradle 出的：`maven.neoforged.net` 在这台机器上连不上，`createMinecraftArtifacts` 一直等下载。`build.gradle` 已经换成 `net.neoforged.moddev`（ModDevGradle 2.0.148），网络正常的环境里 `./gradlew jar` 应该能出包，但这一步本轮没验过。
 
 ---
 
@@ -135,7 +136,7 @@ Connector 跑在 NeoForge 上崩掉 —— 这些各有各的判断依据，不�
 
 ### 游戏内
 
-1. 把 `oba-mc1.21.1-1.1.0.jar` 放进 `.minecraft/mods/`
+1. 把 `oba-mc26.2-1.1.0.jar` 放进 `.minecraft/mods/`
 2. 启动游戏
 
 此后**不需要输入任何命令**。一旦出错，结论会自己出现在日志和聊天栏，
@@ -154,19 +155,19 @@ Connector 跑在 NeoForge 上崩掉 —— 这些各有各的判断依据，不�
 
 ```bash
 # 自动找到 .minecraft，分析最新崩溃报告，并把报告写进 logs
-java -jar oba-mc1.21.1-1.1.0.jar analyze
+java -jar oba-mc26.2-1.1.0.jar analyze
 
 # 指定游戏目录（路径带空格时，加不加引号都能识别）
-java -jar oba-mc1.21.1-1.1.0.jar analyze --game-dir "D:\我的 游戏\.minecraft"
+java -jar oba-mc26.2-1.1.0.jar analyze --game-dir "D:\我的 游戏\.minecraft"
 
 # 直接喂一个崩溃报告
-java -jar oba-mc1.21.1-1.1.0.jar analyze crash-reports/crash-2026-10-09_18.03.20-client.txt
+java -jar oba-mc26.2-1.1.0.jar analyze crash-reports/crash-2026-10-09_18.03.20-client.txt
 
 # 列模组 + 查重复 + 查 MCreator + 标出 Fabric 模组
-java -jar oba-mc1.21.1-1.1.0.jar mods --game-dir "D:\MC\.minecraft"
+java -jar oba-mc26.2-1.1.0.jar mods --game-dir "D:\MC\.minecraft"
 
 # 实时监听，一边玩一边报
-java -jar oba-mc1.21.1-1.1.0.jar watch "D:\MC\.minecraft\logs\latest.log"
+java -jar oba-mc26.2-1.1.0.jar watch "D:\MC\.minecraft\logs\latest.log"
 ```
 
 ### 试用自带样例
@@ -175,16 +176,16 @@ java -jar oba-mc1.21.1-1.1.0.jar watch "D:\MC\.minecraft\logs\latest.log"
 
 ```bash
 # NeoForge 模组崩溃
-java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-09_18.03.20-client.txt
+java -jar oba-mc26.2-1.1.0.jar analyze examples/crash-reports/crash-2026-10-09_18.03.20-client.txt
 
 # Fabric 模组经 Connector 崩溃
-java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_11.35.02-client.txt
+java -jar oba-mc26.2-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_11.35.02-client.txt
 
 # F3+C 手动调试崩溃
-java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_16.47.12-client.txt
+java -jar oba-mc26.2-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_16.47.12-client.txt
 
-java -jar oba-mc1.21.1-1.1.0.jar mods     --game-dir examples
-java -jar oba-mc1.21.1-1.1.0.jar mcreator --game-dir examples
+java -jar oba-mc26.2-1.1.0.jar mods     --game-dir examples
+java -jar oba-mc26.2-1.1.0.jar mcreator --game-dir examples
 ```
 
 预期结果：第一份指向 `awesome-machines-2.1.0.jar` 的 `MachineRegistry.java:143`；
@@ -203,7 +204,7 @@ java -jar oba-mc1.21.1-1.1.0.jar mcreator --game-dir examples
 不带参数直接跑就是菜单：
 
 ```bash
-java -jar oba-mc1.21.1-1.1.0.jar
+java -jar oba-mc26.2-1.1.0.jar
 ```
 
 ```
@@ -517,8 +518,8 @@ oba version / help
 
 
 ```bash
-java -jar oba-mc1.21.1-1.1.0.jar analyze --lang en --game-dir examples
-OBA_LANG=en java -jar oba-mc1.21.1-1.1.0.jar mods --game-dir examples
+java -jar oba-mc26.2-1.1.0.jar analyze --lang en --game-dir examples
+OBA_LANG=en java -jar oba-mc26.2-1.1.0.jar mods --game-dir examples
 ```
 
 所有文案集中在一张表里（`src/main/java/dev/oba/core/Lang.java`），以 `namespace.key` 形式索引。
@@ -807,7 +808,7 @@ Fabric 模组永远不出现在报告里。现在只排除加载器内部实现�
 类名可能经过重映射——免得看到一堆 `net.fabricmc` 以为是异常。
 
 ```bash
-$ java -jar oba-mc1.21.1-1.1.0.jar mods --game-dir "D:\MC\.minecraft"
+$ java -jar oba-mc26.2-1.1.0.jar mods --game-dir "D:\MC\.minecraft"
 OBA 模组清单 — 6 个文件，26 个类
 检测到 Sinytra Connector，报告里的 Fabric 模组会以各自的 jar 出现。……
 
@@ -856,7 +857,7 @@ connectormod-2.0.0.jar      connectormod     2.0.0  3
 本目录是**自包含的**：下面列的就是这个版本要编的全部源码和资源，拷出去单独构建也行。
 
 ```
-1.21.1-neoforge/
+26.2-neoforge/
 │
 ├── README.md                        本文档（简体中文）
 ├── README.en.md                     English README
@@ -937,10 +938,11 @@ connectormod-2.0.0.jar      connectormod     2.0.0  3
 ./gradlew jar
 ```
 
-产物在 `build/libs/oba-mc1.21.1-1.1.0.jar`。
+产物在 `build/libs/oba-mc26.2-1.1.0.jar`。
 
-- JDK：21
-- 构建插件：NeoForgeGradle（`net.neoforged.gradle.userdev` 7.1.38）
+- JDK：25
+- 构建插件：ModDevGradle（`net.neoforged.moddev` 2.0.148）
+- 这个 jar 是本机用 `javac` 直编的：`maven.neoforged.net` 连不上，`createMinecraftArtifacts` 一直等下载。网络正常的环境里 `./gradlew jar` 应该能出包，本轮没验过这一步。
 - 描述文件就是 `META-INF/neoforge.mods.toml`，内容同样由 `gradle.properties` 展开。
 
 ---
@@ -951,7 +953,7 @@ connectormod-2.0.0.jar      connectormod     2.0.0  3
 |---|---|
 | 引擎自测（`199` 条断言） | 通过 |
 | 运行时验证台（`52` 条断言） | 通过 |
-| 本目录编译与出包 | 通过，产物 `build/libs/oba-mc1.21.1-1.1.0.jar` |
+| 本目录编译与出包 | 通过，产物 `build/libs/oba-mc26.2-1.1.0.jar` |
 | 本轨道实机 | 见上面「这一条轨道的实机结果」 |
 
 两套验证都是引擎级的，跑的是同一份 `core/` 代码，和加载器无关：断言覆盖的正是前面写的

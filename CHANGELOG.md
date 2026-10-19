@@ -1,28 +1,30 @@
 # 变更记录
 
-这份文件只记 `versions/1.21.1-neoforge/` 这一条轨道自己的历史：这一版改了什么、修了什么、还剩什么。
+这份文件只记 `versions/26.2-neoforge/` 这一条轨道自己的历史：这一版改了什么、修了什么、还剩什么。
 仓库总体的版本说明在根目录的 `CHANGELOG.md`。
 
 ## 这条轨道是什么
 
 | 项目 | 值 |
 |---|---|
-| Minecraft | 1.21 ~ 1.21.x |
-| 加载器 | **NeoForge** 21.1 线 |
-| Java | 21 |
-| 编译目标 | 1.21.1 / 21.1.256 |
+| Minecraft | 26.2 |
+| 加载器 | **NeoForge** 26.2 线，构建时对 26.2.0.93 |
+| Java | 25 |
+| 编译目标 | 26.2 / 26.2.0.93 |
 | 描述文件 | META-INF/neoforge.mods.toml |
-| 产物 | `oba-mc1.21.1-1.1.0.jar` |
+| 产物 | `oba-mc26.2-1.1.0.jar` |
 | 状态 | 已出包，已实机验证 |
 
-覆盖 1.21.1 和 21.x 的 NeoForge。NeoForge 从 1.20.5 起重做过 tick 事件，tick 钩子改成走 `IEventBus.addListener(Class, Consumer)` 反射挂载，实机已经能挂上；1.21.2 以后还没进游戏试过。
+Minecraft 从 26.x 起换了版本号写法，26.2 要 Java 25。这条轨道只对 26.2，26.1 和 26.3 没有单独出包。
 
 ## 1.1.0 — 2026-10-16
 
+这条轨道在 1.1.0 才出现，所以没有更早的版本记录。
+
 ### 这一版这条轨道改了什么
 
-- 构建脚本换成 `net.neoforged.gradle.userdev` 7.1.38，描述文件 `META-INF/neoforge.mods.toml`。
-- `repositories` 里除了 `maven.neoforged.net` 还列了官方 CDN 镜像 `neoforged.forgecdn.net`，主站连不上时由它顶上。
+- 新开这条轨道：目标 `26.2 / 26.2.0.93`，Java 25，产物名带 `mc26.2`，描述文件 `META-INF/neoforge.mods.toml`。
+- 加载器 API 在 26.2 上还认得 `IEventBus.addListener`、`ModContainer`、`ModList` 这几样，适配层一行没改就能编过；不能编的是构建脚本，`userdev` 插件跟不到 26.x。
 
 ### 这一版进到这个 jar 里的引擎改动
 
@@ -66,25 +68,12 @@
 
 ### 这一版验证到哪一步
 
-- 专用服务端 NeoForge 21.1.262 上跑通：能加载、能停服；装 lithium / modernfix / ferritecore / Clumps 四个真实模组后索引 5 个文件 / 1114 个类 / 364 个包 / 38 ms，退出时正常出报告。
-- 装一个 common 类里引用 `net.minecraft.client.gui.screens.Screen` 的探针模组：崩在模组加载阶段，退出时兜底写出的报告点名探针模组、可信度 高 (55%)，问题清单首条是「服务端装了仅客户端模组」。
-- 1.21.1 + NeoForge 21.1.256，16 个真实模组：`[OBA] enabled: 1.1.0`，索引 17 个模组文件 / 4899 个类 / 1150 个包 / 100 ms，进主菜单约 20 秒。
+- 客户端 26.2 + NeoForge 26.2.0.93（Java 25），装 lithium / ferritecore / Clumps / Jade / JEI 五个真实模组：`[OBA] 已启用：1.1.0`，17.5 秒进主菜单，索引 7 个模组文件 / 5401 个类 / 523 个包（68 ms）。日志里只有三条拿不到账号的联网错误，OBA 没有误报。
+- 同版本的专用服务端装同样五个模组：进到 `Done`（日志里的 `Done (0.320s)` 只是世界加载本身），索引 7 个模组文件 / 5401 个类 / 523 个包（44~49 ms，两次启动），停服正常，会话小结「本次会话未捕获到错误」。
 - 引擎自测 **199 / 199** 通过，运行时验证台 **52 / 52** 通过。
 
 ### 这一版还剩的问题
 
-- 1.21.2 及以后的 NeoForge 没有实机验证过。
-
-## 1.0.1 — 2026-10-15
-
-- 游戏内 `/oba` 命令树重新注册（此前被重复注册顶掉，整棵树没挂上）。
-- 补 `pack.mcmeta` / `pack.png`，加载器不会再把它当成坏掉的资源包报警。
-- 日志跟踪不再自己吃自己：自己的结论行和聊天栏回显被显式排除，报告不会层层嵌套。
-- 管道里也能上色：`-Doba.color` / `OBA_COLOR` / `--color` 三个开关真正生效。
-- 游戏内界面按像素排版，终端按字符列排版，两边共用同一份视觉元素。
-
-## 1.0.0 — 2026-10-14
-
-- 第一版：日志归一化、规则匹配、堆栈反查、模组打分、事故时间线、报告落盘。
-- 这条轨道从第一版就有。
-- CLI 子命令 `analyze` / `mods` / `mcreator` / `watch` / `version`，以及游戏内 `/oba` 菜单。
+- 26.1 / 26.3 没有单独出包，也没进过游戏。
+- NeoForge 26.2 在 Windows 上会自己抛一串 `AppenderLoggingException`（`io.netty.channel.kqueue.Native` / `epoll.Native` 只有 OSX、Linux 才有），服务端照常跑完；OBA 没有把这串算成崩溃，也没有据此写报告。
+- 这条轨道的 jar 是本机用 `javac` 直编的，不是 Gradle 出的：`maven.neoforged.net` 在这台机器上连不上，`createMinecraftArtifacts` 一直等下载。`build.gradle` 已经换成 `net.neoforged.moddev`（ModDevGradle 2.0.148），网络正常的环境里 `./gradlew jar` 应该能出包，但这一步本轮没验过。

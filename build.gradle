@@ -1,13 +1,16 @@
-// 1.21.x 轨道的构建脚本（NeoForge）。
+// 26.2 轨道的构建脚本（NeoForge）。
 //
 // 这个目录是自包含的：源码全在 src/main 下，拷走就能单独构建。
 // 源文件由 tools/sync-versions.ps1 从 engine/ 同步过来，别在这里直接改引擎逻辑。
+//
+// 和 1.20.2 ~ 1.21.1 那几条 NeoForge 轨道不一样：26.x 起 NeoGradle（userdev）不再跟，
+// 官方给的构建插件换成了 ModDevGradle，所以这里用 net.neoforged.moddev。
 //
 // 构建：./gradlew jar
 
 plugins {
     id 'java-library'
-    id 'net.neoforged.gradle.userdev' version '7.1.38'
+    id 'net.neoforged.moddev' version '2.0.148'
 }
 
 version = mod_version
@@ -17,36 +20,35 @@ base {
     archivesName = "${mod_id}-${archive_suffix}"
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+// 26.2 的类文件是 Java 25
+java.toolchain.languageVersion = JavaLanguageVersion.of(25)
 
 repositories {
     mavenCentral()
-    // maven.neoforged.net 在部分网络下连不上，官方 CDN 镜像内容一致
+    // maven.neoforged.net 在这台机器上连不上，官方 CDN 镜像内容一致
     maven { url = 'https://neoforged.forgecdn.net/releases' }
 }
 
-dependencies {
-    implementation "net.neoforged:neoforge:${neo_version}"
-}
+neoForge {
+    version = project.neo_version
 
-runs {
-    configureEach {
-        systemProperty 'forge.logging.markers', 'REGISTRIES'
-        systemProperty 'forge.logging.console.level', 'debug'
-        workingDirectory project.layout.projectDirectory.dir('run').dir(name)
-        modSource project.sourceSets.main
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
     }
-    client {
-        systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-    }
-    server {
-        systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-        argument '--nogui'
-    }
-}
 
-configurations {
-    runtimeClasspath.extendsFrom localRuntime
+    mods {
+        "${project.mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
 }
 
 // 把 ${...} 占位符换成这条轨道自己的值

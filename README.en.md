@@ -2,9 +2,9 @@
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
-**Disclaimer: Because this MOD has a very high priority, please do not apply it to your important or active servers or saves. OBA contributors will not take any responsibility for any issues caused! Using it means you agree to and accept the potential instability risks.**
+**This mod is still in the early stages of development and is an unfinished work, so please don't apply it to your modpacks or save files. OBA contributors won't be responsible for any issues it causes!**
 
-**Crash diagnostics for Minecraft 1.21 – 1.21.x** (NeoForge).
+**Crash diagnostics for Minecraft 26.2** (NeoForge).
 
 The game dies, the log is a few thousand lines of stack trace, and none of it says who did it.
 OBA boils that down to one sentence you can act on: **which jar, which class, which line, and
@@ -16,7 +16,7 @@ English | [简体中文](README.md)
 > It does not disable, move, rename or delete any mod. Everything it concludes is printed
 > and written to a report; acting on it is your decision.
 
-> **This is the README for the 1.21.1 (NeoForge) track only.** It covers this track's Minecraft
+> **This is the README for the 26.2 (NeoForge) track only.** It covers this track's Minecraft
 > versions, loader adapter, build and verification results. The repository overview, the branch
 > list and the version matrix live in the root README.
 
@@ -28,15 +28,15 @@ English | [简体中文](README.md)
 
 | Item | Value |
 |---|---|
-| Minecraft | 1.21 – 1.21.x |
-| Loader | **NeoForge**, 21.1 line |
-| Java | 21 |
-| Built against | 1.21.1 / 21.1.256 |
+| Minecraft | 26.2 |
+| Loader | **NeoForge**, 26.2 line, built against 26.2.0.93 |
+| Java | 25 |
+| Built against | 26.2 / 26.2.0.93 |
 | Descriptor | `META-INF/neoforge.mods.toml` |
-| Artifact | `oba-mc1.21.1-1.1.0.jar` |
+| Artifact | `oba-mc26.2-1.1.0.jar` |
 | Status | built and verified in game |
 
-Covers 1.21.1 and the 21.x line of NeoForge. NeoForge reworked its tick events in 1.20.5; the hook now registers through `IEventBus.addListener(Class, Consumer)` and attaches in game. NeoForge 1.21.2 and later has not been tried in game.
+Minecraft moved to 26.x-style version numbers, and 26.2 needs Java 25. This track covers 26.2 only — 26.1 and 26.3 get no separate jar.
 
 ### The loader adapter on this track
 
@@ -50,19 +50,20 @@ knows the three interfaces in `dev.oba.loader`:
 | `TickHook` | hook the server tick |
 | `Loader` | holds whichever implementation this build installed |
 
-`src/main/java/dev/oba/loader/neoforge/`: `NeoForgeEnv` reads the mod list and the game directory, `NeoForgeTickHook` hooks the server tick.
+`src/main/java/dev/oba/loader/neoforge/`: `NeoForgeEnv` reads the mod list and the game directory, `NeoForgeTickHook` hooks the server tick. Neither needed changes on 26.2.
 
-NeoForge rebuilt its tick events around 1.20.5, so `NeoForgeTickHook` probes two class names with `Class.forName`: `event.tick.ServerTickEvent$Post` and the older `event.TickEvent$ServerTickEvent`. Both resolve on this track; registration goes through `IEventBus.addListener(Class, Consumer)`, so nothing is registered against the abstract `Event` class.
+The 26.2 server tick is still `event.tick.ServerTickEvent$Post`; `NeoForgeTickHook` attaches through `IEventBus.addListener(Class, Consumer)` and the dedicated server showed no "could not hook the tick event" warning.
 
 ### In-game results on this track
 
-- Runs on a dedicated NeoForge 21.1.262 server: starts and stops cleanly; with lithium, modernfix, ferritecore and Clumps installed it indexes 5 files / 1114 classes / 364 packages in 38 ms and still writes the shutdown report.
-- A probe mod whose common class touches `net.minecraft.client.gui.screens.Screen` dies during mod loading; the report written on shutdown names it with confidence high (55%), first finding "a client-only mod is installed on a server".
-- 1.21.1 + NeoForge 21.1.256 with 16 real mods: `[OBA] enabled: 1.1.0`, indexed 17 mod files / 4899 classes / 1150 packages in 100 ms, main menu in about 20 s.
+- Client 26.2 + NeoForge 26.2.0.93 (Java 25) with lithium, ferritecore, Clumps, Jade and JEI: `[OBA] 已启用：1.1.0`, main menu in 17.5 s, indexed 7 mod files / 5401 classes / 523 packages (68 ms). The log held only three network errors about the missing account.
+- Dedicated server on the same version with the same five mods: reached `Done` (the log's `Done (0.320s)` is just the world load), indexed 7 mod files / 5401 classes / 523 packages (44–49 ms across two runs), clean stop, session summary "no error captured".
 
 ### Still open on this track
 
-- NeoForge 1.21.2 and later has not been verified in game.
+- 26.1 and 26.3 have no jar and have never been launched.
+- On Windows, NeoForge 26.2 itself throws a run of `AppenderLoggingException`s (`io.netty.channel.kqueue.Native` / `epoll.Native` exist only on OSX and Linux). The server still finished normally and OBA did not treat it as a crash or write a report about it.
+- The jar here came from plain `javac`, not Gradle: `maven.neoforged.net` is unreachable from this machine and `createMinecraftArtifacts` waits on that download forever. `build.gradle` already uses `net.neoforged.moddev` (ModDevGradle 2.0.148), so `./gradlew jar` should work on a machine with network — that step was not verified this round.
 
 ---
 
@@ -144,7 +145,7 @@ deleted, and a report is only ever a new text file under `logs`.
 
 ### In game
 
-1. Put `oba-mc1.21.1-1.1.0.jar` into `.minecraft/mods/`
+1. Put `oba-mc26.2-1.1.0.jar` into `.minecraft/mods/`
 2. Start the game
 
 From then on **you do not type anything**. When something breaks, the verdict appears in the
@@ -163,19 +164,19 @@ Type `/oba report` only when you want the full report on screen.
 
 ```bash
 # find .minecraft, analyse the newest crash report, write the report into logs
-java -jar oba-mc1.21.1-1.1.0.jar analyze
+java -jar oba-mc26.2-1.1.0.jar analyze
 
 # point at a game directory (quoted or unquoted, paths with spaces are fine)
-java -jar oba-mc1.21.1-1.1.0.jar analyze --game-dir "D:\my games\.minecraft"
+java -jar oba-mc26.2-1.1.0.jar analyze --game-dir "D:\my games\.minecraft"
 
 # feed it one crash report
-java -jar oba-mc1.21.1-1.1.0.jar analyze crash-reports/crash-2026-10-09_18.03.20-client.txt
+java -jar oba-mc26.2-1.1.0.jar analyze crash-reports/crash-2026-10-09_18.03.20-client.txt
 
 # list mods, find duplicates, spot MCreator, mark Fabric mods
-java -jar oba-mc1.21.1-1.1.0.jar mods --game-dir "D:\MC\.minecraft"
+java -jar oba-mc26.2-1.1.0.jar mods --game-dir "D:\MC\.minecraft"
 
 # follow the log while you play
-java -jar oba-mc1.21.1-1.1.0.jar watch "D:\MC\.minecraft\logs\latest.log"
+java -jar oba-mc26.2-1.1.0.jar watch "D:\MC\.minecraft\logs\latest.log"
 ```
 
 ### Try the bundled examples
@@ -185,16 +186,16 @@ and a missing-dependency log.
 
 ```bash
 # a NeoForge mod blows up
-java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-09_18.03.20-client.txt
+java -jar oba-mc26.2-1.1.0.jar analyze examples/crash-reports/crash-2026-10-09_18.03.20-client.txt
 
 # a Fabric mod blows up under Connector
-java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_11.35.02-client.txt
+java -jar oba-mc26.2-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_11.35.02-client.txt
 
 # an F3+C debug crash
-java -jar oba-mc1.21.1-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_16.47.12-client.txt
+java -jar oba-mc26.2-1.1.0.jar analyze examples/crash-reports/crash-2026-10-10_16.47.12-client.txt
 
-java -jar oba-mc1.21.1-1.1.0.jar mods     --game-dir examples
-java -jar oba-mc1.21.1-1.1.0.jar mcreator --game-dir examples
+java -jar oba-mc26.2-1.1.0.jar mods     --game-dir examples
+java -jar oba-mc26.2-1.1.0.jar mcreator --game-dir examples
 ```
 
 Expected: the first names `awesome-machines-2.1.0.jar` at `MachineRegistry.java:143`; the
@@ -215,7 +216,7 @@ current item - and **menu entries are clickable in both.**
 Run it with no arguments:
 
 ```bash
-java -jar oba-mc1.21.1-1.1.0.jar
+java -jar oba-mc26.2-1.1.0.jar
 ```
 
 ```
@@ -535,8 +536,8 @@ So a Chinese client gets Chinese verdicts and any other client gets English, wit
 configuration.
 
 ```bash
-java -jar oba-mc1.21.1-1.1.0.jar analyze --lang en --game-dir examples
-OBA_LANG=en java -jar oba-mc1.21.1-1.1.0.jar mods --game-dir examples
+java -jar oba-mc26.2-1.1.0.jar analyze --lang en --game-dir examples
+OBA_LANG=en java -jar oba-mc26.2-1.1.0.jar mods --game-dir examples
 ```
 
 All strings live in one table (`src/main/java/dev/oba/core/Lang.java`) keyed in `namespace.key` form.
@@ -893,7 +894,7 @@ describes a crash" is never mistaken for "a crash happened".
 This directory is **self-contained**: everything below is what this build compiles, and it can be copied out and built on its own.
 
 ```
-1.21.1-neoforge/
+26.2-neoforge/
 │
 ├── README.md                        Simplified Chinese README
 ├── README.en.md                     This file (English)
@@ -974,10 +975,11 @@ This directory is self-contained; nothing else in the repository is needed:
 ./gradlew jar
 ```
 
-The artifact lands in `build/libs/oba-mc1.21.1-1.1.0.jar`.
+The artifact lands in `build/libs/oba-mc26.2-1.1.0.jar`.
 
-- JDK: 21
-- Build plugin: NeoForgeGradle (`net.neoforged.gradle.userdev` 7.1.38)
+- JDK: 25
+- Build plugin: ModDevGradle (`net.neoforged.moddev` 2.0.148)
+- This jar came from plain `javac`: `maven.neoforged.net` is unreachable here and `createMinecraftArtifacts` waits on the download forever. `./gradlew jar` should work with network access, but that step was not verified this round.
 - The descriptor is `META-INF/neoforge.mods.toml`, expanded from `gradle.properties` the same way.
 
 ---
@@ -988,7 +990,7 @@ The artifact lands in `build/libs/oba-mc1.21.1-1.1.0.jar`.
 |---|---|
 | Engine self-test (`199` assertions) | pass |
 | Runtime harness (`52` assertions) | pass |
-| This directory compiles and produces a jar | pass, `build/libs/oba-mc1.21.1-1.1.0.jar` |
+| This directory compiles and produces a jar | pass, `build/libs/oba-mc26.2-1.1.0.jar` |
 | In-game on this track | see "In-game results on this track" above |
 
 Both suites are engine-level: they run the same `core/` code and know nothing about the loader.

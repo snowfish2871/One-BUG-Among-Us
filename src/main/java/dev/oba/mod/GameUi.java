@@ -273,7 +273,74 @@ public final class GameUi {
     // 离线自测里初始化不起来（NeoForge 那边 LoadingModList.get() 是 null），
     // 光造 ClickEvent 不需要注册表，能照样验「点一下跑的是哪条命令」。
     public static ClickEvent clickEvent(ClickEvent.Action action, String value) {
-        return new ClickEvent(action, value);
+        // 1.20.1 ~ 1.21.1：ClickEvent 是普通类，一个构造器就够
+        try {
+            return (ClickEvent) ClickEvent.class
+                    .getConstructor(ClickEvent.Action.class, String.class)
+                    .newInstance(action, value);
+        } catch (NoSuchMethodException newer) {
+            // 26.x 起 ClickEvent 变成接口，每个动作一个 record，只能按动作挑子类
+            return clickEventRecord(action, value);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("造不出点击事件: " + action, e);
+        }
+    }
+
+    // 接口版的 ClickEvent：RunCommand / SuggestCommand / OpenUrl / CopyToClipboard / ChangePage
+    // 各是一个 record。这些子类只在 26.x 之后才有，所以按名字反射，编译期不认它们。
+    private static ClickEvent clickEventRecord(ClickEvent.Action action, String value) {
+        String type;
+        Object arg;
+        switch (action) {
+            case RUN_COMMAND -> {
+                type = "RunCommand";
+                arg = value;
+            }
+            case SUGGEST_COMMAND -> {
+                type = "SuggestCommand";
+                arg = value;
+            }
+            case OPEN_URL -> {
+                type = "OpenUrl";
+                arg = java.net.URI.create(value);
+            }
+            case COPY_TO_CLIPBOARD -> {
+                type = "CopyToClipboard";
+                arg = value;
+            }
+            case CHANGE_PAGE -> {
+                type = "ChangePage";
+                arg = Integer.parseInt(value.trim());
+            }
+            default -> {
+                return null;
+            }
+        }
+        try {
+            Class<?> record = Class.forName("net.minecraft.network.chat.ClickEvent$" + type);
+            Class<?> parameter = arg instanceof Integer ? int.class : arg.getClass();
+            return (ClickEvent) record.getConstructor(parameter).newInstance(arg);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("造不出点击事件: " + action, e);
+        }
+    }
+
+    // 鼠标提示同理：1.21.1 是 new HoverEvent(SHOW_TEXT, text)，26.x 是 HoverEvent.ShowText
+    private static HoverEvent hoverText(Component text) {
+        try {
+            return (HoverEvent) HoverEvent.class
+                    .getConstructor(HoverEvent.Action.class, Component.class)
+                    .newInstance(HoverEvent.Action.SHOW_TEXT, text);
+        } catch (NoSuchMethodException newer) {
+            try {
+                return (HoverEvent) Class.forName("net.minecraft.network.chat.HoverEvent$ShowText")
+                        .getConstructor(Component.class).newInstance(text);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("造不出鼠标提示", e);
+            }
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("造不出鼠标提示", e);
+        }
     }
 
     // 点击/提示要挂到整棵组件树上，不能只挂根节点：
@@ -301,20 +368,19 @@ public final class GameUi {
     public static MutableComponent click(Component content, String command, String hover) {
         return clickable(content, Style.EMPTY
                 .withClickEvent(clickEvent(ClickEvent.Action.RUN_COMMAND, command))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(hover))));
+                .withHoverEvent(hoverText(Component.literal(hover))));
     }
 
     public static MutableComponent url(Component content, String link) {
         return clickable(content, Style.EMPTY
                 .withClickEvent(clickEvent(ClickEvent.Action.OPEN_URL, link))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(link))));
+                .withHoverEvent(hoverText(Component.literal(link))));
     }
 
     public static MutableComponent suggest(Component content, String command) {
         return clickable(content, Style.EMPTY
                 .withClickEvent(clickEvent(ClickEvent.Action.SUGGEST_COMMAND, command))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                        Component.literal(Lang.get("gameui.insert", command)))));
+                .withHoverEvent(hoverText(Component.literal(Lang.get("gameui.insert", command)))));
     }
 
     // 底部按键提示
