@@ -1,6 +1,6 @@
 # 变更记录
 
-这份文件只记 `versions/26.2-neoforge/` 这一条轨道自己的历史：这一版改了什么、修了什么、还剩什么。
+这份文件只记 `versions/26.2-forge/` 这一条轨道自己的历史：这一版改了什么、修了什么、还剩什么。
 仓库总体的版本说明在根目录的 `CHANGELOG.md`。
 
 ## 这条轨道是什么
@@ -8,14 +8,14 @@
 | 项目 | 值 |
 |---|---|
 | Minecraft | 26.2 |
-| 加载器 | **NeoForge** 26.2 线，构建时对 26.2.0.93 |
+| 加载器 | **Forge** 26.2 线，构建时对 26.2-65.1.5 |
 | Java | 25 |
-| 编译目标 | 26.2 / 26.2.0.93 |
-| 描述文件 | META-INF/neoforge.mods.toml |
-| 产物 | `oba-mc26.2-1.1.0.jar` |
+| 编译目标 | 26.2 / 26.2-65.1.5 |
+| 描述文件 | META-INF/mods-forge.toml（源文件 `mods-forge.toml`） |
+| 产物 | `oba-mc26.2-forge-1.1.0.jar` |
 | 状态 | 已出包，已实机验证 |
 
-Minecraft 从 26.x 起换了版本号写法，26.2 要 Java 25。这条轨道只对 26.2，26.1 和 26.3 没有单独出包。
+Forge 把 26.2 的版本写成 `26.2-65.x`（加载器主版本 65），要 Java 25。这条轨道只对 26.2，26.1 和 26.3 没有单独出包。
 
 ## 1.1.0 — 2026-10-16
 
@@ -23,8 +23,8 @@ Minecraft 从 26.x 起换了版本号写法，26.2 要 Java 25。这条轨道只
 
 ### 这一版这条轨道改了什么
 
-- 新开这条轨道：目标 `26.2 / 26.2.0.93`，Java 25，产物名带 `mc26.2`，描述文件 `META-INF/neoforge.mods.toml`。
-- 加载器 API 在 26.2 上还认得 `IEventBus.addListener`、`ModContainer`、`ModList` 这几样，适配层一行没改就能编过；不能编的是构建脚本，`userdev` 插件跟不到 26.x。
+- 新开这条轨道：目标 `26.2 / 26.2-65.1.5`，Java 25，产物名带 `mc26.2-forge`，描述文件 `META-INF/mods-forge.toml`（构建时展开成 `mods.toml`）。
+- Forge 26.2 的加载器 API 和 1.21.1 那条一致，`src/loader/forge262` 直接从 `src/loader/forge` 抄过来就能编；跟不上的只有构建脚本里的 ForgeGradle 版本。
 
 ### 这一版进到这个 jar 里的引擎改动
 
@@ -68,12 +68,12 @@ Minecraft 从 26.x 起换了版本号写法，26.2 要 Java 25。这条轨道只
 
 ### 这一版验证到哪一步
 
-- 客户端 26.2 + NeoForge 26.2.0.93（Java 25），装 lithium / ferritecore / Clumps / Jade / JEI 五个真实模组：`[OBA] 已启用：1.1.0`，17.5 秒进主菜单，索引 7 个模组文件 / 5401 个类 / 523 个包（68 ms）。日志里只有三条拿不到账号的联网错误，OBA 没有误报。
-- 同版本的专用服务端装同样五个模组：进到 `Done`（日志里的 `Done (0.320s)` 只是世界加载本身），索引 7 个模组文件 / 5401 个类 / 523 个包（44~49 ms，两次启动），停服正常，会话小结「本次会话未捕获到错误」。
+- 客户端 26.2 + Forge 26.2-65.1.5（Java 25），装 Mouse Tweaks / Carry On / Better Advancements / Fast IP Ping / No Chat Reports / Iceberg / Collective 七个真实模组：`[OBA] 已启用：1.1.0`，17.7 秒进主菜单，索引 8 个模组文件 / 1087 个类 / 203 个包（44~48 ms，两次启动）。日志里只有两条拿不到账号的联网错误，OBA 没有误报。
+- 同版本的专用服务端装同样七个模组：进到 `Done`，索引 8 个模组文件 / 1087 个类 / 203 个包（30~46 ms，两次启动），停服正常，会话小结「本次会话未捕获到错误」。
 - 引擎自测 **199 / 199** 通过，运行时验证台 **52 / 52** 通过。
 
 ### 这一版还剩的问题
 
 - 26.1 / 26.3 没有单独出包，也没进过游戏。
-- NeoForge 26.2 在 Windows 上会自己抛一串 `AppenderLoggingException`（`io.netty.channel.kqueue.Native` / `epoll.Native` 只有 OSX、Linux 才有），服务端照常跑完；OBA 没有把这串算成崩溃，也没有据此写报告。
-- 这条轨道的 jar 是本机用 `javac` 直编的，不是 Gradle 出的：`maven.neoforged.net` 在这台机器上连不上，`createMinecraftArtifacts` 一直等下载。`build.gradle` 已经换成 `net.neoforged.moddev`（ModDevGradle 2.0.148），网络正常的环境里 `./gradlew jar` 应该能出包，但这一步本轮没验过。
+- Forge 26.2 在 Windows 上也会抛那几个 `AppenderLoggingException`（`io.netty.channel.kqueue.Native` / `epoll.Native` 只有 OSX、Linux 才有），服务端照常跑完；OBA 没有把这串算成崩溃。
+- jar 是本机用 `javac` 直编的：`build.gradle` 写的是 ForgeGradle 7，但这台机器拉不动 26.2 的 userdev，`./gradlew jar` 能不能出包本轮没验过。

@@ -1,9 +1,9 @@
 pluginManagement {
     repositories {
         gradlePluginPortal()
-        // maven.neoforged.net 在部分网络下连不上，官方 CDN 镜像内容一致
-        maven { url = 'https://neoforged.forgecdn.net/releases' }
+        // ForgeGradle 只在 Forge 自己的 maven 上
+        maven { url = 'https://maven.minecraftforge.net' }
     }
 }
 
-rootProject.name = 'oba-1.21.1-neoforge'
+rootProject.name = 'oba-26.2-forge'

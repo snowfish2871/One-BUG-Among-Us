@@ -1,21 +1,23 @@
-// 把玩家在游戏里选的语言告诉引擎，让报告语言跟着游戏走。
+// 把玩家在游戏里选的语言告诉引擎，让报告语言跟着游戏走（Forge 26.2 版）。
 // 只在客户端生效：专用服务器没有语言选项，那边由 JVM 区域或 -Doba.lang 决定。
 //
-// 这里没用 @EventBusSubscriber：那个注解是 NeoForge 20.4 才有的，
-// 20.2 上编译不过。改成由 ObaMod 在确认是客户端之后手动注册，
-// 既跨版本可用，也顺带避免了服务端加载客户端专属的类。
+// 和 1.20.1 那份的区别只在事件怎么挂：26.x 每个事件自带静态 BUS，
+// 不必再写 @SubscribeEvent，也不会被当成无效监听器。
 package dev.oba.mod;
 
 import dev.oba.core.Lang;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraft.client.Minecraft;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 
 public final class ClientLanguage {
 
+    // 由 ObaMod 在确认是客户端之后调用
+    public static void install() {
+        ClientPlayerNetworkEvent.LoggingIn.BUS.addListener(ClientLanguage::onClientLogin);
+    }
+
     // 每次进世界或连服务器时同步一次，玩家中途改语言也能跟上
-    @SubscribeEvent
-    public void onClientLogin(ClientPlayerNetworkEvent.LoggingIn event) {
+    private static void onClientLogin(ClientPlayerNetworkEvent.LoggingIn event) {
         applyFromOptions();
         // 开发机上给界面拍照用，没设参数就不会碰这个类
         if (System.getProperty("oba.ui.shot") != null) {
