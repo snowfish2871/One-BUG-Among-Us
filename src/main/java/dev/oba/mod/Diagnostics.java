@@ -603,6 +603,11 @@ public final class Diagnostics {
         } catch (IOException e) {
             output.accept(Oba.LOG_PREFIX + Lang.get("mod.readFailed", e.getMessage()));
             return Optional.empty();
+        } catch (Throwable t) {
+            // 分析器里的任何意外都不该往上冒：调用点是启动钩子，没人接得住，
+            // 一条读不懂的路径就能把整个服务端带崩（1.1.0 上真出过）
+            output.accept(Oba.LOG_PREFIX + Lang.get("mod.analysisFailed", t));
+            return Optional.empty();
         }
     }
 
@@ -899,6 +904,10 @@ public final class Diagnostics {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 try {
                     writeReportOnExit();
+                    // 报告落盘之后再留一份交接文件。附属进程只认这一份 JSON，
+                    // 不用猜报告文件名，也不用解析那套给人看的排版。
+                    // 写不进去就算了，这行在退出阶段不该再抛出去
+                    Companion.writeHandoff(this);
                 } catch (Throwable t) {
                     // 退出阶段，能写则写，写不了就算了。
                     // 这一句走 stderr 而不是 log4j2：此刻日志系统可能已经关了，
