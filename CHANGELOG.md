@@ -12,10 +12,46 @@
 | Java | 25 |
 | 编译目标 | 26.2 / 26.2.0.93 |
 | 描述文件 | META-INF/neoforge.mods.toml |
-| 产物 | `oba-mc26.2-1.1.0.jar` |
+| 产物 | `oba-mc26.2-1.2.0.jar` |
 | 状态 | 已出包，已实机验证 |
 
 Minecraft 从 26.x 起换了版本号写法，26.2 要 Java 25。这条轨道只对 26.2，26.1 和 26.3 没有单独出包。
+
+## 1.2.0 — 2026-10-31
+
+### 这一版这条轨道改了什么
+
+- 版本号抬到 1.2.0，产物换成 `oba-mc26.2-1.2.0.jar`；引擎改动与 1.1.0 的规则、归因没有回退。
+
+### 这一版进到这个 jar 里的引擎改动
+
+- **崩溃后的附属进程做进同一个 jar**：客户端启动时用 `javaw -cp <本 jar>` 另起一个 JVM，入口
+  `dev.oba.companion.CompanionMain`；游戏退出时关闭钩子往 `logs/oba-companion/` 写交接 JSON，
+  它读到就开窗。分发物仍然只有一个文件，没有 exe，也不往临时目录解东西。
+- **窗口三态**：崩了顶栏写「崩溃」并抢前台；只是捕获过错误写「出过错误」；一条错误都没有的正常
+  退出不开窗。判据分别是本场新出现的崩溃报告、交接 JSON 里的 `capturedErrors`、以及两者都没有。
+- **问题清单带规则名**：每条下面一行 `规则: <规则名>`，不用再去翻报告正文。
+- **`--tab=report|timeline|environment|json`**：打开时直接翻到那一页。
+- **毛玻璃外观**：背后一块屏幕截图缩到四分之一、方框模糊，铺半透明着色，外层圆角裁剪，
+  加软阴影和 1px 高光边。Windows 没有公开的背景模糊接口，底图靠截屏；挪窗口会重抓，
+  抓之前得先把窗口藏起来（逐像素透明与整窗不透明度互斥，早先那版淡入直接把窗口弄没了）。
+- **套在别的 jar 里的模组（jar-in-jar）也能读**：这类模组的路径在 zip 文件系统上，
+  `Path.toFile()` 会抛 `UnsupportedOperationException`，原来会把 OBA 自己带崩（栈顶在
+  `McreatorDetector.probeForBanner`）。现在读 jar 一律走流，路径只在真的是本地文件时才转成
+  `File`（`ModFiles.isPlainFile`），外面再补一层兜底；内嵌模组因此能作为独立来源参与索引。
+- **附属进程只读**：只读 `logs/oba-companion/` 与 `crash-reports/`，不动 `mods/`、不动存档。
+
+### 这一版验证到哪一步
+
+- 客户端 26.2 + NeoForge 26.2.0.93（Java 25），装了一整包 48 个模组文件：`[OBA] 已启用：1.2.0`，索引 48 个模组文件 / 23898 个类 / 2533 个包（317 ms），附属进程也起来了；同一次启动里 OBA 没有写报告，也没有误报。
+- 同版本的专用服务端装 lithium / ferritecore / Clumps / Jade / JEI 五个真实模组：索引 8 个模组文件 / 5424 个类 / 524 个包（38 ms），进到 `Done (0.290s)`，停服正常，会话小结「本次会话未捕获到错误」，`oba status`、`oba mods` 都有输出。
+- 引擎自测 **203 / 203** 通过，运行时验证台 **52 / 52** 通过。
+
+### 这一版还剩的问题
+
+- 26.1 / 26.3 没有单独出包，也没进过游戏。
+- NeoForge 26.2 在 Windows 上会自己抛一串 `AppenderLoggingException`（`io.netty.channel.kqueue.Native` / `epoll.Native` 只有 OSX、Linux 才有），服务端照常跑完；OBA 没有把这串算成崩溃，也没有据此写报告。
+- `maven.neoforged.net` 时通时不通，备选是官方 CDN 镜像 `neoforged.forgecdn.net`，两条都写进了 `repositories`。
 
 ## 1.1.0 — 2026-10-16
 
@@ -66,14 +102,15 @@ Minecraft 从 26.x 起换了版本号写法，26.2 要 Java 25。这条轨道只
 - **播报节流记住多条键**：键从「整句异常文本」改成「异常类型（冒号之前）+ 元凶文件 + 首个可定位
   栈帧」，并且记住最近 16 条，交替出现的两种异常不会再把对方的抑制顶掉。
 
+
 ### 这一版验证到哪一步
 
-- 客户端 26.2 + NeoForge 26.2.0.93（Java 25），装 lithium / ferritecore / Clumps / Jade / JEI 五个真实模组：`[OBA] 已启用：1.1.0`，17.5 秒进主菜单，索引 7 个模组文件 / 5401 个类 / 523 个包（68 ms）。日志里只有三条拿不到账号的联网错误，OBA 没有误报。
-- 同版本的专用服务端装同样五个模组：进到 `Done`（日志里的 `Done (0.320s)` 只是世界加载本身），索引 7 个模组文件 / 5401 个类 / 523 个包（44~49 ms，两次启动），停服正常，会话小结「本次会话未捕获到错误」。
-- 引擎自测 **199 / 199** 通过，运行时验证台 **52 / 52** 通过。
+- 客户端 26.2 + NeoForge 26.2.0.93（Java 25），装了一整包 48 个模组文件：`[OBA] 已启用：1.2.0`，索引 48 个模组文件 / 23898 个类 / 2533 个包（317 ms），附属进程也起来了；同一次启动里 OBA 没有写报告，也没有误报。
+- 同版本的专用服务端装 lithium / ferritecore / Clumps / Jade / JEI 五个真实模组：索引 8 个模组文件 / 5424 个类 / 524 个包（38 ms），进到 `Done (0.290s)`，停服正常，会话小结「本次会话未捕获到错误」，`oba status`、`oba mods` 都有输出。
+- 引擎自测 **203 / 203** 通过，运行时验证台 **52 / 52** 通过。
 
 ### 这一版还剩的问题
 
 - 26.1 / 26.3 没有单独出包，也没进过游戏。
 - NeoForge 26.2 在 Windows 上会自己抛一串 `AppenderLoggingException`（`io.netty.channel.kqueue.Native` / `epoll.Native` 只有 OSX、Linux 才有），服务端照常跑完；OBA 没有把这串算成崩溃，也没有据此写报告。
-- 这条轨道的 jar 是本机用 `javac` 直编的，不是 Gradle 出的：`maven.neoforged.net` 在这台机器上连不上，`createMinecraftArtifacts` 一直等下载。`build.gradle` 已经换成 `net.neoforged.moddev`（ModDevGradle 2.0.148），网络正常的环境里 `./gradlew jar` 应该能出包，但这一步本轮没验过。
+- `maven.neoforged.net` 时通时不通，备选是官方 CDN 镜像 `neoforged.forgecdn.net`，两条都写进了 `repositories`。

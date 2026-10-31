@@ -325,7 +325,9 @@ public final class GameUi {
         }
     }
 
-    // 鼠标提示同理：1.21.1 是 new HoverEvent(SHOW_TEXT, text)，26.x 是 HoverEvent.ShowText
+    // 鼠标提示同理：1.21.1 是 new HoverEvent(SHOW_TEXT, text)，26.x 是 HoverEvent.ShowText。
+    // 专用服务端上这个构造会踩到没初始化的注册表（HoverEvent.Action.SHOW_TEXT 是 null），
+    // 以前它一抛，整个 /oba status 就跟着挂；现在降级成「没有提示照发」，命令还能用。
     private static HoverEvent hoverText(Component text) {
         try {
             return (HoverEvent) HoverEvent.class
@@ -335,12 +337,18 @@ public final class GameUi {
             try {
                 return (HoverEvent) Class.forName("net.minecraft.network.chat.HoverEvent$ShowText")
                         .getConstructor(Component.class).newInstance(text);
-            } catch (ReflectiveOperationException e) {
-                throw new IllegalStateException("造不出鼠标提示", e);
+            } catch (Throwable e) {
+                return null;
             }
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("造不出鼠标提示", e);
+        } catch (Throwable e) {
+            return null;
         }
+    }
+
+    /** hover 可能是 null（服务端造不出来），那就只挂点击事件。 */
+    private static Style withHover(Style style, String hover) {
+        HoverEvent event = hoverText(Component.literal(hover));
+        return event == null ? style : style.withHoverEvent(event);
     }
 
     // 点击/提示要挂到整棵组件树上，不能只挂根节点：
@@ -366,21 +374,19 @@ public final class GameUi {
     }
 
     public static MutableComponent click(Component content, String command, String hover) {
-        return clickable(content, Style.EMPTY
-                .withClickEvent(clickEvent(ClickEvent.Action.RUN_COMMAND, command))
-                .withHoverEvent(hoverText(Component.literal(hover))));
+        return clickable(content, withHover(Style.EMPTY
+                .withClickEvent(clickEvent(ClickEvent.Action.RUN_COMMAND, command)), hover));
     }
 
     public static MutableComponent url(Component content, String link) {
-        return clickable(content, Style.EMPTY
-                .withClickEvent(clickEvent(ClickEvent.Action.OPEN_URL, link))
-                .withHoverEvent(hoverText(Component.literal(link))));
+        return clickable(content, withHover(Style.EMPTY
+                .withClickEvent(clickEvent(ClickEvent.Action.OPEN_URL, link)), link));
     }
 
     public static MutableComponent suggest(Component content, String command) {
-        return clickable(content, Style.EMPTY
-                .withClickEvent(clickEvent(ClickEvent.Action.SUGGEST_COMMAND, command))
-                .withHoverEvent(hoverText(Component.literal(Lang.get("gameui.insert", command)))));
+        return clickable(content, withHover(Style.EMPTY
+                .withClickEvent(clickEvent(ClickEvent.Action.SUGGEST_COMMAND, command)),
+                Lang.get("gameui.insert", command)));
     }
 
     // 底部按键提示

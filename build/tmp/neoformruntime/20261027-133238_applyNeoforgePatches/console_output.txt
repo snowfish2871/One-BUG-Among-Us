@@ -1,0 +1,28 @@
+--------------------------------------------------------------------------------
+
+Command-Line:
+ - D:\jdk\zulu25.36.205-ca-jdk25.0.4.1-win_x64\bin\java.exe
+ - --sun-misc-unsafe-memory-access=allow
+ - -jar
+ - C:\Users\aVCHh\.gradle\caches\modules-2\files-2.1\io.codechicken\DiffPatch\2.0.0.36\5b32f9baa0c0371c0dc80a3b88794960af0c6b44\DiffPatch-2.0.0.36-all.jar
+ - C:\Users\aVCHh\.gradle\caches\neoformruntime\intermediate_results\patch_c9ed8192c8f49bfd4c6fae9af1de68db47d905e7_output.zip
+ - ./patches
+ - --patch
+ - --archive
+ - ZIP
+ - --output
+ - ./output.zip
+ - --log-level
+ - WARN
+ - --mode
+ - OFFSET
+ - --archive-rejects
+ - ZIP
+ - --reject
+ - ./outputRejects.zip
+ - --base-path-prefix
+ - a/
+ - --modified-path-prefix
+ - b/
+--------------------------------------------------------------------------------
+

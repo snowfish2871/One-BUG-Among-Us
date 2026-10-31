@@ -1,0 +1,39 @@
+--- a/net/minecraft/core/Registry.java
++++ b/net/minecraft/core/Registry.java
+@@ -22,7 +_,10 @@
+ import net.minecraft.util.RandomSource;
+ import org.jspecify.annotations.Nullable;
+ 
+-public interface Registry<T> extends IdMap<T>, Keyable, HolderLookup.RegistryLookup<T> {
++import net.neoforged.neoforge.common.extensions.PendingTagsExtension;
++import net.neoforged.neoforge.registries.IRegistryExtension;
++
++public interface Registry<T> extends IdMap<T>, Keyable, HolderLookup.RegistryLookup<T>, IRegistryExtension<T> {
+     @Override
+     ResourceKey<? extends Registry<T>> key();
+ 
+@@ -46,11 +_,14 @@
+     }
+ 
+     private DataResult<Holder.Reference<T>> safeCastToReference(Holder<T> holder) {
+-        return holder instanceof Holder.Reference<T> reference
++        return holder.getDelegate() instanceof Holder.Reference reference
+             ? DataResult.success(reference)
+             : DataResult.error(() -> "Unregistered holder in " + this.key() + ": " + holder);
+     }
+ 
++    @Override//Neo: Force Implementation of the method from IRegistryExtension rather than defaulting to the empty map implementation from RegistryLookup
++    <A> java.util.Map<ResourceKey<T>, A> getDataMap(net.neoforged.neoforge.registries.datamaps.DataMapType<T, A> type);
++
+     @Override
+     default <U> Stream<U> keys(DynamicOps<U> ops) {
+         return this.keySet().stream().map(k -> ops.createString(k.toString()));
+@@ -167,7 +_,7 @@
+ 
+     DataComponentLookup<T> componentLookup();
+ 
+-    interface PendingTags<T> {
++    interface PendingTags<T> extends PendingTagsExtension<T> {
+         ResourceKey<? extends Registry<? extends T>> key();
+ 
+         HolderLookup.RegistryLookup<T> lookup();

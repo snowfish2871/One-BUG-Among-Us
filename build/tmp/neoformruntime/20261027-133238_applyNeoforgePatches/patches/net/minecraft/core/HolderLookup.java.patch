@@ -1,0 +1,63 @@
+--- a/net/minecraft/core/HolderLookup.java
++++ b/net/minecraft/core/HolderLookup.java
+@@ -13,6 +_,8 @@
+ import net.minecraft.world.flag.FeatureElement;
+ import net.minecraft.world.flag.FeatureFlagSet;
+ 
++import net.neoforged.neoforge.common.extensions.IHolderLookupProviderExtension;
++
+ public interface HolderLookup<T> extends HolderGetter<T> {
+     Stream<Holder.Reference<T>> listElements();
+ 
+@@ -26,7 +_,7 @@
+         return this.listTags().map(HolderSet.Named::key);
+     }
+ 
+-    interface Provider extends HolderGetter.Provider {
++    interface Provider extends HolderGetter.Provider, IHolderLookupProviderExtension {
+         Stream<ResourceKey<? extends Registry<?>>> listRegistryKeys();
+ 
+         default Stream<HolderLookup.RegistryLookup<?>> listRegistries() {
+@@ -94,6 +_,24 @@
+             };
+         }
+ 
++        /// {@return the data map value attached with the object with the key, or {@code null} if there's no attached value}
++        ///
++        /// @param type the type of the data map
++        /// @param key  the object to get the value for
++        /// @param <A>  the data type
++        @org.jspecify.annotations.Nullable
++        default <A> A getData(net.neoforged.neoforge.registries.datamaps.DataMapType<T, A> type, ResourceKey<T> key) {
++            return null;
++        }
++
++        /// {@return the data map of the given `type`}
++        ///
++        /// @param type the type of the data map
++        /// @param <A>  the data type
++        default <A> Map<ResourceKey<T>, A> getDataMap(net.neoforged.neoforge.registries.datamaps.DataMapType<T, A> type) {
++            return Map.of();
++        }
++
+         interface Delegate<T> extends HolderLookup.RegistryLookup<T> {
+             HolderLookup.RegistryLookup<T> parent();
+ 
+@@ -125,6 +_,17 @@
+             @Override
+             default Stream<HolderSet.Named<T>> listTags() {
+                 return this.parent().listTags();
++            }
++
++            @Override
++            @org.jspecify.annotations.Nullable
++            default <A> A getData(net.neoforged.neoforge.registries.datamaps.DataMapType<T, A> type, ResourceKey<T> key) {
++                return parent().getData(type, key);
++            }
++
++            @Override
++            default <A> Map<ResourceKey<T>, A> getDataMap(net.neoforged.neoforge.registries.datamaps.DataMapType<T, A> type) {
++                return parent().getDataMap(type);
+             }
+         }
+     }
