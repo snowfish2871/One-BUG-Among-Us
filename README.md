@@ -10,6 +10,8 @@
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
+[English](README.en.md) | 简体中文
+
 > **只读**：OBA 只写自己那份报告和日志，不改动、不移动、不删除任何模组文件。
 
 ## 目录
