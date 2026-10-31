@@ -8,6 +8,8 @@
 - 九条版本轨道，从 1.20.1 到 26.2，Forge 与 NeoForge 各自出包
 - 一个 jar 同时带游戏内命令、命令行和崩溃后的独立窗口
 
+<img src="docs/banner.svg" alt="One BUG Among Us" width="420">
+
 > **只读**：OBA 只写自己那份报告和日志，不改动、不移动、不删除任何模组文件。
 
 ## 目录
