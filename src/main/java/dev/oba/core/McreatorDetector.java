@@ -227,9 +227,36 @@ public final class McreatorDetector {
 
     // 抽几个小的文本资源看看有没有生成标记，不往磁盘上解压任何东西
     private static String probeForBanner(ModSource source) {
-        if (source.isDirectory()) {
-            return probeDirectory(source, 24);
+        try {
+            if (source.isDirectory()) {
+                return probeDirectory(source, 24);
+            }
+            if (!ModFiles.isPlainFile(source.path())) {
+                return probeStream(source);
+            }
+            return probeJar(source);
+        } catch (RuntimeException | Error e) {
+            // 认 MCreator 只是给结论补一条理由，任何读文件的问题都不该把调用方带崩
+            return null;
         }
+    }
+
+    // 流式探一遍：模组套在别的 zip 里时用，不能 toFile()
+    private static String probeStream(ModSource source) {
+        try {
+            for (String text : ModFiles.smallTextEntries(source.path(), 40, 64 * 1024).values()) {
+                String hit = bannerIn(text);
+                if (hit != null) {
+                    return hit;
+                }
+            }
+        } catch (IOException | RuntimeException ignored) {
+            // 读不动就当没有标记
+        }
+        return null;
+    }
+
+    private static String probeJar(ModSource source) {
         try (JarFile jar = new JarFile(source.path().toFile())) {
             int inspected = 0;
             var it = jar.entries();
