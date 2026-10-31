@@ -31,7 +31,7 @@ public final class ObaMod {
         EarlyLanguage.seedIfClient();
 
         // 客户端怎么读语言是这一侧的事，塞给共享的生命周期去调
-        if (FMLEnvironment.dist == Dist.CLIENT) {
+        if (isClient()) {
             lifecycle.setClientReadyAction(ClientLanguage::applyFromOptions);
             // 聊天栏的排版得按真字体宽度算，服务端没有字体这个概念
             ObaLifecycle.registerSafely(ClientFont::install, "clientFont");
@@ -55,7 +55,7 @@ public final class ObaMod {
         ObaLifecycle.registerSafely(() -> NeoForge.EVENT_BUS.register(this), "self");
         // 语言同步只在客户端挂：服务端没有语言设置，
         // 而且客户端的类在服务端根本不该被加载
-        if (FMLEnvironment.dist == Dist.CLIENT) {
+        if (isClient()) {
             ObaLifecycle.registerSafely(
                     () -> NeoForge.EVENT_BUS.register(new ClientLanguage()), "clientLanguage");
         }
@@ -64,11 +64,28 @@ public final class ObaMod {
     private void onCommonSetup(FMLCommonSetupEvent event) {
         // 建索引要读所有模组 jar，别占着加载线程
         event.enqueueWork(() -> {
-            if (FMLEnvironment.dist == Dist.CLIENT) {
+            if (isClient()) {
                 lifecycle.onClientReady();
             }
             lifecycle.onCommonSetup();
         });
+    }
+
+    // 客户端还是服务端：1.20.2 ~ 1.21.1 读 FMLEnvironment.dist 字段，
+    // 26.x 把这个字段换成了 getDist()。两条路都探一次，编译期两边都不用知道对方。
+    private static boolean isClient() {
+        try {
+            Object dist;
+            try {
+                dist = FMLEnvironment.class.getMethod("getDist").invoke(null);
+            } catch (NoSuchMethodException older) {
+                dist = FMLEnvironment.class.getField("dist").get(null);
+            }
+            return dist == Dist.CLIENT;
+        } catch (ReflectiveOperationException e) {
+            // 探不到就当服务端：只给客户端的钩子宁可少挂，也不要在服务端加载客户端类
+            return false;
+        }
     }
 
     @SubscribeEvent

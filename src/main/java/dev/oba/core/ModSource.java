@@ -371,6 +371,12 @@ public final class ModSource {
 
     private void readJar(List<String> classes, List<String> entryList, List<String> errors,
                          List<Descriptor> descs, List<NestedJar> nested) {
+        // 套在别的 zip 里的模组拿到的 Path 不在默认文件系统上，toFile() 会抛
+        // UnsupportedOperationException，所以这类只能流式读
+        if (!ModFiles.isPlainFile(path)) {
+            readJarStreaming(classes, entryList, errors, descs, nested);
+            return;
+        }
         try (JarFile jar = new JarFile(path.toFile())) {
             var it = jar.entries();
             List<JarEntry> nestedEntries = new ArrayList<>();
@@ -407,6 +413,68 @@ public final class ModSource {
             }
         } catch (IOException e) {
             errors.add(Lang.get("jar.openFailed", fileName(), e));
+        }
+    }
+
+    // 流式读一遍 jar：不能随机访问，但任何文件系统上的 jar 都读得动。
+    // 和 readJar 保持同样的产出（条目表、类名、描述文件、内嵌 jar），只是换了读法。
+    private void readJarStreaming(List<String> classes, List<String> entryList, List<String> errors,
+                                  List<Descriptor> descs, List<NestedJar> nested) {
+        Map<String, byte[]> descriptorFiles = new LinkedHashMap<>();
+        Map<String, byte[]> innerJars = new LinkedHashMap<>();
+        try (InputStream raw = Files.newInputStream(path);
+             java.util.zip.ZipInputStream zin = new java.util.zip.ZipInputStream(raw)) {
+            java.util.zip.ZipEntry entry;
+            while ((entry = zin.getNextEntry()) != null) {
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                String name = entry.getName();
+                entryList.add(name);
+                if (name.endsWith(".class") && !name.equals("module-info.class")
+                        && !name.startsWith("META-INF/versions/")) {
+                    classes.add(name.substring(0, name.length() - 6).replace('/', '.'));
+                }
+                if (name.startsWith("META-INF/jarjar/") && name.endsWith(".jar")) {
+                    innerJars.put(name, zin.readAllBytes());
+                } else if (name.equals("META-INF/neoforge.mods.toml")
+                        || name.equals("META-INF/mods.toml")
+                        || name.equals("fabric.mod.json")) {
+                    descriptorFiles.put(name, zin.readAllBytes());
+                }
+            }
+        } catch (IOException | RuntimeException e) {
+            errors.add(Lang.get("jar.openFailed", fileName(), e));
+            return;
+        }
+
+        boolean found = false;
+        for (String candidate : List.of("META-INF/neoforge.mods.toml", "META-INF/mods.toml")) {
+            byte[] data = descriptorFiles.get(candidate);
+            if (data == null) {
+                continue;
+            }
+            found = true;
+            parseDescriptor(new String(data, java.nio.charset.StandardCharsets.UTF_8),
+                    candidate, descs, errors);
+        }
+        byte[] fabric = descriptorFiles.get("fabric.mod.json");
+        if (!found && fabric != null) {
+            parseFabricDescriptor(new String(fabric, java.nio.charset.StandardCharsets.UTF_8), descs, errors);
+        }
+        for (Map.Entry<String, byte[]> inner : innerJars.entrySet()) {
+            try {
+                List<Descriptor> innerDescs = descriptorsOfNestedJar(inner.getValue(), inner.getKey(), errors);
+                for (Descriptor d : innerDescs) {
+                    nested.add(new NestedJar(inner.getKey(), List.of(d.modId()),
+                            d.displayName(), d.version()));
+                }
+                if (innerDescs.isEmpty()) {
+                    nested.add(new NestedJar(inner.getKey(), List.of(), null, null));
+                }
+            } catch (Exception e) {
+                errors.add(Lang.get("jar.nestedFailed", inner.getKey(), e));
+            }
         }
     }
 
@@ -659,6 +727,12 @@ public final class ModSource {
                 Path mf = path.resolve("META-INF/MANIFEST.MF");
                 if (Files.isRegularFile(mf)) {
                     found = readManifestVersion(Files.readString(mf));
+                }
+            } else if (!ModFiles.isPlainFile(path)) {
+                // 套在别的 zip 里的 jar：按条目流式读，toFile() 在这儿会抛异常
+                byte[] data = ModFiles.readEntry(path, "META-INF/MANIFEST.MF", 64 * 1024);
+                if (data != null) {
+                    found = readManifestVersion(new String(data, java.nio.charset.StandardCharsets.UTF_8));
                 }
             } else {
                 try (JarFile jar = new JarFile(path.toFile())) {
