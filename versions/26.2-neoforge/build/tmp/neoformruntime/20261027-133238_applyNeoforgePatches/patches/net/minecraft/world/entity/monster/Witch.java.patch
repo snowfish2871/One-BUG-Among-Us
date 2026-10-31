@@ -1,0 +1,26 @@
+--- a/net/minecraft/world/entity/monster/Witch.java
++++ b/net/minecraft/world/entity/monster/Witch.java
+@@ -132,7 +_,7 @@
+                 }
+             } else {
+                 Holder<Potion> potion = null;
+-                if (this.random.nextFloat() < 0.15F && this.isEyeInFluid(FluidTags.WATER) && !this.hasEffect(MobEffects.WATER_BREATHING)) {
++                if (this.random.nextFloat() < 0.15F && this.getFluidInteraction().isEyeInFluidMatching(this, (entity, type, _) -> entity.canDrownInFluidType(type)) && !this.hasEffect(MobEffects.WATER_BREATHING)) {
+                     potion = Potions.WATER_BREATHING;
+                 } else if (this.random.nextFloat() < 0.15F
+                     && (this.isOnFire() || this.getLastDamageSource() != null && this.getLastDamageSource().is(DamageTypeTags.IS_FIRE))
+@@ -208,10 +_,11 @@
+     protected float getDamageAfterMagicAbsorb(DamageSource damageSource, float damage) {
+         damage = super.getDamageAfterMagicAbsorb(damageSource, damage);
+         if (damageSource.getEntity() == this) {
++            this.damageContainers.peek().setReduction(net.neoforged.neoforge.common.damagesource.DamageContainer.Reduction.INNATE_RESISTANCE, damage);
+             damage = 0.0F;
+-        }
+-
+-        if (damageSource.is(DamageTypeTags.WITCH_RESISTANT_TO)) {
++            // Neo: Join the two ifs; if the first one runs (reducing damage to 0), the second one (reducing damage by 15%) effectively does nothing
++        } else if (damageSource.is(DamageTypeTags.WITCH_RESISTANT_TO)) {
++            this.damageContainers.peek().setReduction(net.neoforged.neoforge.common.damagesource.DamageContainer.Reduction.INNATE_RESISTANCE, damage * 0.85F);
+             damage *= 0.15F;
+         }
+ 

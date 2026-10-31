@@ -1,0 +1,16 @@
+{
+  "jars": [
+    {
+      "identifier": {
+        "group": "io.github.llamalad7",
+        "artifact": "mixinextras-neoforge"
+      },
+      "version": {
+        "range": "[0.3.1,)",
+        "artifactVersion": "0.3.1"
+      },
+      "path": "META-INF/jarjar/mixinextras-neoforge-0.3.1.jar",
+      "isObfuscated": false
+    }
+  ]
+}

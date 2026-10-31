@@ -1,0 +1,150 @@
+// 1.21.1-forge 轨道的构建脚本。
+//
+// 这条轨道用 ForgeGradle：它会从 maven.minecraftforge.net 拉这个版本的 userdev 包，
+// 把 Minecraft 反混淆成能对着写代码的名字，然后编译本目录的源码。
+// Java 与 Forge 版本见 gradle.properties。
+//
+// 源码就在本目录的 src/main 下（共享代码的副本，加上 src/loader/forge 的适配实现），
+// 这份构建是自包含的。
+//
+// 构建：./gradlew -p versions/1.21.1-forge jar
+
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    // 版本号由 Gradle 的 version 自己接在末尾，这里不要再写一遍
+    archivesName = "${mod_id}-${archive_suffix}"
+}
+
+// Minecraft 1.21.1 要求 Java 21
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+// 源码就在本目录的 src/main 下，这份构建是自包含的。
+sourceSets {
+    main {
+        resources {
+            // 描述文件源名叫 mods-forge.toml，免得和别的加载器那份撞名
+            exclude 'META-INF/mods.toml'
+            exclude 'META-INF/neoforge.mods.toml'
+        }
+    }
+}
+
+minecraft {
+    mappings channel: 'official', version: minecraft_version
+
+    // 让 /oba 命令能在开发环境里跑起来
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            mods { "${mod_id}" { source sourceSets.main } }
+        }
+        server {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            args '--nogui'
+            mods { "${mod_id}" { source sourceSets.main } }
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.minecraftforge.net' }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${forge_version}"
+}
+
+// 把 ${...} 占位符换成这条轨道自己的值
+tasks.withType(ProcessResources).configureEach {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            forge_version          : forge_version,
+            forge_version_range    : forge_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+    ]
+    inputs.properties replaceProperties
+
+    // 源文件叫 mods-forge.toml（四条 Forge 轨道共用一份，内容全是占位符），
+    // 落到 jar 里必须叫 mods.toml
+    filesMatching(['META-INF/mods-forge.toml']) {
+        name = 'mods.toml'
+        expand replaceProperties
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    manifest {
+        attributes([
+                'Main-Class'              : 'dev.oba.Launcher',
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+}
+
+// 1.20.4 及更早的 Forge 运行时用 SRG 名字（Commands.m_82127_），编译出来的官方名
+// 必须 reobf 一次；Forge 1.20.5 起官方取消了这个步骤，ForgeGradle 也不再创建
+// reobfJar 任务——jar 里直接就是官方名，运行时照样认。所以按任务是否存在决定，
+// 写死 finalizedBy 'reobfJar' 在 1.20.6 / 1.21.1 上会直接报任务找不到。
+afterEvaluate {
+    def reobf = tasks.findByName('reobfJar')
+    if (reobf != null) {
+        reobf.dependsOn 'jar'
+        tasks.named('jar') { finalizedBy reobf }
+    }
+}
+
+// 游戏外也能直接用这个 jar 跑命令行。
+// 和 NeoForge 那几条轨道保持一致，命令名也一样。
+// 注意这里用 setArgs 而不是 `args =`：ForgeGradle 会把 args 变成一个
+// 只读的属性，直接赋值会报 "Could not set unknown property 'args'"
+tasks.register('runCli', JavaExec) {
+    group = 'oba'
+    description = '在游戏外跑命令行诊断'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'dev.oba.Launcher'
+    systemProperty 'oba.mode', 'cli'
+    setArgs((project.findProperty('cliArgs') ?: 'help').toString().split(' ').toList())
+}
+
+tasks.register('dist') {
+    group = 'oba'
+    description = '构建这条轨道的 jar 并打印路径'
+    dependsOn 'jar'
+    doLast {
+        println "OBA ${mod_version} for Minecraft ${minecraft_version_range} on Forge ${forge_version}"
+        println "  -> ${tasks.jar.archiveFile.get().asFile.absolutePath}"
+        println tasks.findByName('reobfJar') != null
+                ? "  这条轨道用 ForgeGradle，jar 是 reobf 过的"
+                : "  这条轨道用 ForgeGradle，不需要 reobf，jar 里就是官方名"
+    }
+}

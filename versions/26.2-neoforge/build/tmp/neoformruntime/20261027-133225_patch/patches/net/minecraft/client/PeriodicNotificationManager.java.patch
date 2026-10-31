@@ -1,0 +1,15 @@
+--- a/net/minecraft/client/PeriodicNotificationManager.java
++++ b/net/minecraft/client/PeriodicNotificationManager.java
+@@ -119,6 +_,12 @@
+     }
+ 
+     public record Notification(long delay, long period, String title, String message) {
++        public Notification(long delay, long period, String title, String message) {
++            this.delay = delay != 0L ? delay : period;
++            this.period = period;
++            this.title = title;
++            this.message = message;
++        }
+     }
+ 
+     private static class NotificationTask extends TimerTask {

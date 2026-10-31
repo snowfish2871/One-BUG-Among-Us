@@ -1,0 +1,111 @@
+// 1.20.2 ~ 1.20.4 轨道 的构建脚本（NeoForge）。
+//
+// 这个目录是自包含的：源码全在 src/main 下，拷走就能单独构建。
+// 源文件由 tools/sync-versions.ps1 从 engine/ 同步过来，别在这里直接改引擎逻辑。
+//
+// 构建：./gradlew jar
+
+plugins {
+    id 'java-library'
+    id 'net.neoforged.gradle.userdev' version '7.1.38'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = "${mod_id}-${archive_suffix}"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+repositories {
+    mavenCentral()
+    // maven.neoforged.net 在部分网络下连不上，官方 CDN 镜像内容一致
+    maven { url = 'https://neoforged.forgecdn.net/releases' }
+}
+
+dependencies {
+    implementation "net.neoforged:neoforge:${neo_version}"
+}
+
+runs {
+    configureEach {
+        systemProperty 'forge.logging.markers', 'REGISTRIES'
+        systemProperty 'forge.logging.console.level', 'debug'
+        workingDirectory project.layout.projectDirectory.dir('run').dir(name)
+        modSource project.sourceSets.main
+    }
+    client {
+        systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+    }
+    server {
+        systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        argument '--nogui'
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+// 把 ${...} 占位符换成这条轨道自己的值
+tasks.withType(ProcessResources).configureEach {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/mods.toml']) {
+        expand replaceProperties
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    manifest {
+        attributes([
+                'Main-Class'              : 'dev.oba.Launcher',
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+}
+
+// 游戏外也能直接用这个 jar 跑命令行
+tasks.register('runCli', JavaExec) {
+    group = 'oba'
+    description = '在游戏外跑命令行诊断'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'dev.oba.Launcher'
+    systemProperty 'oba.mode', 'cli'
+    args = (project.findProperty('cliArgs') ?: 'help').toString().split(' ')
+}
+
+tasks.register('dist') {
+    group = 'oba'
+    description = '构建这条轨道的 jar 并打印路径'
+    dependsOn 'jar'
+    doLast {
+        println "OBA ${mod_version} for Minecraft ${minecraft_version_range} on NeoForge ${neo_version}"
+        println "  -> ${tasks.jar.archiveFile.get().asFile.absolutePath}"
+    }
+}
