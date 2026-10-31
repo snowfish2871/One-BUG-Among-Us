@@ -10,6 +10,8 @@ mod file.
 - Nine version tracks, 1.20.1 through 26.2, with separate Forge and NeoForge jars
 - One jar carries the in-game commands, the command line, and the post-crash window
 
+<img src="docs/banner.svg" alt="One BUG Among Us" width="420">
+
 > **Read only**: OBA writes its own report and log, and never modifies, moves or deletes a mod file.
 
 ## Contents
