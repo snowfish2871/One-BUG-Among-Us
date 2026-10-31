@@ -12,6 +12,8 @@ mod file.
 
 <img src="docs/banner.svg" alt="One BUG Among Us" width="420">
 
+English | [简体中文](README.md)
+
 > **Read only**: OBA writes its own report and log, and never modifies, moves or deletes a mod file.
 
 ## Contents
