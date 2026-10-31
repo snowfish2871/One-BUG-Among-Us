@@ -74,10 +74,7 @@ public final class UiShot {
             final int round = i + 1;
             game.execute(() -> {
                 try {
-                    // 不带文件名的那版重载：文件名由游戏自己按时间戳起，
-                    // 四个版本都有它，带文件名的那版签名各版本不一样
-                    net.minecraft.client.Screenshot.grab(game.gameDirectory,
-                            game.getMainRenderTarget(), message -> { });
+                    grab(game);
                     LogManager.getLogger(Oba.MOD_ID).warn(
                             "{}" + "界面截图辅助自己截了一张（第 " + round + " 张）", Oba.LOG_PREFIX);
                 } catch (Throwable t) {
@@ -136,6 +133,24 @@ public final class UiShot {
     private static boolean inWorld() {
         Minecraft minecraft = Minecraft.getInstance();
         return minecraft != null && minecraft.player != null && minecraft.player.connection != null;
+    }
+
+    // 截图接口在各版本之间改过：1.21.1 及以前把 Minecraft.getMainRenderTarget() 交给
+    // Screenshot.grab(File, RenderTarget, Consumer)；26.x 的渲染层重写之后主渲染目标
+    // 不再挂在 Minecraft 上，只剩 F2 那条路 Screenshot.grab(Minecraft, boolean)。
+    // 两条都试一次，能成一条就行 —— 这个类只在开发机上开，失败也只是少一张图。
+    private static void grab(Minecraft game) throws ReflectiveOperationException {
+        try {
+            java.lang.reflect.Method key = net.minecraft.client.Screenshot.class
+                    .getMethod("grab", Minecraft.class, boolean.class);
+            key.invoke(null, game, true);
+            return;
+        } catch (NoSuchMethodException notOnThisVersion) {
+            // 老版本没有这条路，往下走
+        }
+        Object renderTarget = Minecraft.class.getMethod("getMainRenderTarget").invoke(game);
+        net.minecraft.client.Screenshot.grab(game.gameDirectory,
+                (com.mojang.blaze3d.pipeline.RenderTarget) renderTarget, message -> { });
     }
 
     private static void sleep(long millis) {
