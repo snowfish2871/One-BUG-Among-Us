@@ -83,6 +83,11 @@ public final class ObaLifecycle {
             // 索引还没建的时候先盯文件
             diagnostics.startTailing();
             diagnostics.installExitHook();
+            // 附属进程跟游戏是两个进程，越早拉起来越好：游戏在构造阶段就被杀掉的
+            // 那种崩溃，本进程的退出钩子根本不会跑，只剩它能发现"游戏没了"。
+            // 客户端才启动，服务端没有窗口可弹；找不到可执行文件时这里什么都不做
+            Companion.setOutput(line -> LOGGER.info(line));
+            Companion.start();
             initialized = true;
         } catch (Throwable t) {
             LOGGER.warn("{}" + Lang.get("mod.initFailed", t), Oba.LOG_PREFIX);
@@ -134,6 +139,15 @@ public final class ObaLifecycle {
 
     // 服务器起来了，索引缺了或者过期就补一次
     public void onServerStarted() {
+        try {
+            analyzeLeftoverCrash();
+        } catch (Throwable t) {
+            // 这是事件总线上的回调，抛出去就是一次「服务端启动即崩」
+            LOGGER.warn("{}" + Lang.get("mod.analysisFailed", t), Oba.LOG_PREFIX);
+        }
+    }
+
+    private void analyzeLeftoverCrash() {
         if (diagnostics.sources().isEmpty()) {
             diagnostics.reindex(true, null);
         }
