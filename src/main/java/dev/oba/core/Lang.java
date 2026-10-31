@@ -859,6 +859,12 @@ public final class Lang {
         put("mod.noErrors", "No error was captured this session.", "本次会话未捕获到错误。");
         put("mod.sessionSummary", "Captured {0} error lines this session ({1} fatal).",
                 "本次会话共捕获 {0} 行错误（致命 {1} 行）。");
+        put("companion.started", "Companion started in a second JVM (pid {0}) from {1}",
+                "附属进程已在第二个 JVM 里启动（PID {0}），界面取自 {1}");
+        put("companion.failed", "Could not start the companion process: {0}",
+                "附属进程没启动起来：{0}");
+        put("companion.missing", "Could not find our own jar under {0}; the companion stays off",
+                "在 {0} 下找不到 OBA 自己的 jar，附属进程跳过");
         put("mod.memoryWarn", "Memory warning: {0} MB used of {1} MB ({2}%)",
                 "内存告警: 已用 {0} MB / 上限 {1} MB ({2}%)");
         put("mod.lagWarn", "Lag detected: {0} s since the last tick", "检测到卡顿: 距上次 tick 已 {0} 秒");
