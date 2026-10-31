@@ -1,4 +1,0 @@
-[10:00:00] [main/ERROR] Mod awesomemachines requires absentlib 1.4.0 that is missing
-[10:00:00] [main/ERROR] Missing or unsupported mandatory dependencies:
-	modId: 'absentlib', requested by 'awesomemachines', versionRange: '[1.4.0,)', ordering: NONE
-[10:00:01] [main/FATAL] Failed to create mod instance. Mod: awesomemachines
